@@ -1,0 +1,331 @@
+-- Owner's Edition - Premium Egg Hunter
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "OWNER CONTROL PANEL",
+   LoadingTitle = "Premium Egg Hunter",
+   LoadingSubtitle = "Owner's Edition",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "OwnerConfig",
+      FileName = "Settings"
+   }
+})
+
+-- Core Variables
+local player = game:GetService("Players").LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local PlayerGui = player:WaitForChild("PlayerGui")
+local musicId = 5410086218
+local musicSound
+local yLimit = 1000
+local teleportRate = 0.39
+local baseplate = nil
+local AutoBattleEnabled = true
+
+-- Clean up existing sounds
+for _, sound in pairs(workspace:GetDescendants()) do
+    if sound:IsA("Sound") then sound:Destroy() end
+end
+
+-- Music System
+local function playMusic()
+    if musicSound then musicSound:Stop() end
+    musicSound = Instance.new("Sound")
+    musicSound.Parent = workspace
+    musicSound.SoundId = "rbxassetid://"..musicId
+    musicSound.Looped = true
+    musicSound.Volume = 0.5
+    musicSound:Play()
+end
+
+-- Anti-lag system
+local function optimizeGame()
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    game.Lighting.GlobalShadows = false
+    for _,v in pairs(game.Workspace:GetDescendants()) do
+        if v:IsA("ParticleEmitter") or v:IsA("Trail") then
+            v.Enabled = false
+        elseif v:IsA("BasePart") and v.Material == Enum.Material.Grass then
+            v.Material = Enum.Material.SmoothPlastic
+        end
+    end
+end
+
+local function deactivateLag()
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+    game.Lighting.GlobalShadows = true
+    for _,v in pairs(game.Workspace:GetDescendants()) do
+        if v:IsA("ParticleEmitter") or v:IsA("Trail") then
+            v.Enabled = true
+        end
+    end
+end
+
+-- Battle Detection
+local function isInBattle()
+    return PlayerGui:FindFirstChild("BattleGui", true) ~= nil
+end
+
+-- Tabs
+local MainTab = Window:CreateTab("Main Controls", "settings")
+local VisualTab = Window:CreateTab("Visual", "eye")
+local BattleTab = Window:CreateTab("Battle System", "swords")
+
+-- Music Controls
+MainTab:CreateSection("Music System")
+
+MainTab:CreateButton({
+   Name = "▶ PLAY MUSIC",
+   Callback = function()
+        playMusic()
+        Rayfield:Notify({
+            Title = "MUSIC STARTED",
+            Content = "Now playing track ID: "..musicId,
+            Duration = 3,
+            Image = "music"
+        })
+   end
+})
+
+MainTab:CreateButton({
+   Name = "⏹ STOP MUSIC",
+   Callback = function()
+        if musicSound then 
+            musicSound:Stop()
+            Rayfield:Notify({
+                Title = "MUSIC STOPPED",
+                Content = "Audio playback disabled",
+                Duration = 2,
+                Image = "volume-x"
+            })
+        end
+   end
+})
+
+-- Hunting Controls
+MainTab:CreateSection("Hunting System")
+
+local TeleportToggle = MainTab:CreateToggle({
+   Name = "⚡ AUTO-TELEPORT",
+   CurrentValue = false,
+   Callback = function(Value)
+        if Value then 
+            playMusic()
+            Rayfield:Notify({
+                Title = "HUNTING MODE",
+                Content = "Teleport system activated",
+                Duration = 3,
+                Image = "target"
+            })
+        else
+            Rayfield:Notify({
+                Title = "HUNTING MODE",
+                Content = "Teleport system deactivated",
+                Duration = 3,
+                Image = "circle-slash"
+            })
+        end
+   end
+})
+
+MainTab:CreateSlider({
+   Name = "📏 Y-AXIS LIMIT",
+   Range = {1, 5000},
+   Increment = 1,
+   Suffix = "studs",
+   CurrentValue = 1000,
+   Callback = function(Value)
+        yLimit = Value
+   end
+})
+
+MainTab:CreateSlider({
+   Name = "⏱ TELEPORT RATE",
+   Range = {0.1, 1},
+   Increment = 0.01,
+   Suffix = "seconds",
+   CurrentValue = 0.39,
+   Callback = function(Value)
+        teleportRate = Value
+        Rayfield:Notify({
+            Title = "SYSTEM UPDATE",
+            Content = "Teleport delay: "..Value.." seconds",
+            Duration = 2,
+            Image = "clock"
+        })
+   end
+})
+
+-- Battle System Controls
+BattleTab:CreateSection("Auto-Battle Settings")
+
+BattleTab:CreateToggle({
+    Name = "⚔ AUTO-BATTLE SYSTEM",
+    CurrentValue = AutoBattleEnabled,
+    Callback = function(Value)
+        AutoBattleEnabled = Value
+        Rayfield:Notify({
+            Title = "BATTLE SYSTEM",
+            Content = Value and "Auto-battle enabled" or "Auto-battle disabled",
+            Duration = 2,
+            Image = "swords"
+        })
+    end
+})
+
+-- Visual Baseplate Button
+VisualTab:CreateButton({
+   Name = "🟩 SPAWN BASEPLATE",
+   Callback = function()
+        if baseplate then baseplate:Destroy() end
+        baseplate = Instance.new("Part", workspace)
+        baseplate.Size = Vector3.new(2000, 5, 2000)
+        baseplate.Position = character.HumanoidRootPart.Position + Vector3.new(0, 50, 0)
+        baseplate.Anchored = true
+        baseplate.Color = Color3.fromRGB(0, 200, 100)
+        baseplate.Material = Enum.Material.Neon
+        baseplate.Name = "OwnerBaseplate"
+        baseplate.Transparency = 0.3
+
+        coroutine.wrap(function()
+            while baseplate and baseplate.Parent do
+                baseplate.Position = character.HumanoidRootPart.Position + Vector3.new(0, 50, 0)
+                task.wait(0.1)
+            end
+        end)()
+
+        Rayfield:Notify({
+            Title = "VISUAL SYSTEM",
+            Content = "Baseplate spawned 50 studs above",
+            Duration = 3,
+            Image = "box"
+        })
+   end
+})
+
+-- Anti-Lag Buttons
+VisualTab:CreateSection("Anti-Lag System")
+
+VisualTab:CreateButton({
+    Name = "🚀 ENABLE ANTI-LAG",
+    Callback = function()
+        optimizeGame()
+        Rayfield:Notify({
+            Title = "ANTI-LAG ACTIVE",
+            Content = "Performance optimizations applied",
+            Duration = 3,
+            Image = "activity"
+        })
+    end
+})
+
+VisualTab:CreateButton({
+    Name = "🛑 DISABLE ANTI-LAG",
+    Callback = function()
+        deactivateLag()
+        Rayfield:Notify({
+            Title = "ANTI-LAG DISABLED",
+            Content = "Settings reverted to default",
+            Duration = 3,
+            Image = "power"
+        })
+    end
+})
+
+-- Egg Detection System (exactly "Egg")
+local function getEggs()
+    local eggs = {}
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Name == "Egg" and obj.Position.Y <= yLimit then
+            table.insert(eggs, obj)
+        end
+    end
+    return eggs
+end
+
+-- Main Hunting Loop
+task.spawn(function()
+    while task.wait() do
+        if TeleportToggle.CurrentValue and not isInBattle() then
+            local eggs = getEggs()
+            for _, egg in ipairs(eggs) do
+                if not TeleportToggle.CurrentValue or isInBattle() then 
+                    if isInBattle() then
+                        Rayfield:Notify({
+                            Title = "COMBAT DETECTED",
+                            Content = "Teleportation paused",
+                            Duration = 3,
+                            Image = "swords"
+                        })
+                    end
+                    break 
+                end
+                if egg and egg.Parent then
+                    humanoid.RootPart.CFrame = CFrame.new(egg.Position)
+                    task.wait(teleportRate)
+                end
+            end
+        end
+    end
+end)
+
+-- Battle Loop (ONLY CLICKS MOVE 3)
+task.spawn(function()
+    while task.wait() do
+        if AutoBattleEnabled then
+            local BattleGui = PlayerGui:FindFirstChild("BattleGui", true)
+            if BattleGui then
+                -- Get Move 3 button
+                local clickMove3 = BattleGui:FindFirstChild("Move3", true) and BattleGui:FindFirstChild("Move3", true).Button
+                
+                -- Get fight/rest buttons
+                local clickFight, restFight
+                for _, v in ipairs(BattleGui:GetChildren()) do
+                    if v:IsA("ImageLabel") then
+                        if v.ImageColor3 == Color3.fromRGB(218, 83, 255) then -- Rest color
+                            restFight = v:FindFirstChild("Button")
+                        elseif v.ImageColor3 == Color3.fromRGB(255, 102, 102) then -- Fight color
+                            clickFight = v:FindFirstChild("Button")
+                        end
+                    end
+                end
+
+                -- Start battle if needed
+                if clickFight and clickFight.Parent.Visible then
+                    local pos = clickFight.AbsolutePosition + Vector2.new(clickFight.AbsoluteSize.X/2, clickFight.AbsoluteSize.Y/2)
+                    mousemoveabs(pos.X, pos.Y)
+                    mouse1click()
+                    task.wait(1)
+                end
+
+                -- Battle actions (ONLY CLICKS MOVE 3)
+                if clickMove3 and clickMove3.Parent.Visible then
+                    local pos = clickMove3.AbsolutePosition + Vector2.new(clickMove3.AbsoluteSize.X/2, clickMove3.AbsoluteSize.Y/2)
+                    mousemoveabs(pos.X, pos.Y)
+                    mouse1click()
+                    task.wait(0.3)
+                elseif restFight and restFight.Parent.Visible then
+                    local pos = restFight.AbsolutePosition + Vector2.new(restFight.AbsoluteSize.X/2, restFight.AbsoluteSize.Y/2)
+                    mousemoveabs(pos.X, pos.Y)
+                    mouse1click()
+                    task.wait(0.3)
+                end
+            end
+        end
+    end
+end)
+
+-- Initialize
+Rayfield:LoadConfiguration()
+
+-- Welcome Notification
+task.wait(1)
+Rayfield:Notify({
+   Title = "OWNER SYSTEM ONLINE",
+   Content = "Premium controls activated\nTeleport rate adjustable",
+   Duration = 6,
+   Image = "shield-check"
+})
