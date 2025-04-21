@@ -1,19 +1,15 @@
--- Loomian Legacy Script - Premium Edition
+-- Owner's Edition - Premium Egg Hunter
+
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "LOOMIAN LEGACY PREMIUM",
-   LoadingTitle = "Loomian Legacy Premium Tools",
-   LoadingSubtitle = "Enhanced Edition",
+   Name = "OWNER CONTROL PANEL",
+   LoadingTitle = "Premium Egg Hunter",
+   LoadingSubtitle = "Owner's Edition",
    ConfigurationSaving = {
       Enabled = true,
-      FolderName = "LoomianPremiumConfig",
-      FileName = "PremiumSettings"
-   },
-   Discord = {
-      Enabled = false,
-      Invite = "noinvitelink",
-      RememberJoins = true
+      FolderName = "OwnerConfig",
+      FileName = "Settings"
    }
 })
 
@@ -21,9 +17,16 @@ local Window = Rayfield:CreateWindow({
 local player = game:GetService("Players").LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
+local PlayerGui = player:WaitForChild("PlayerGui")
 local musicId = 5410086218
 local musicSound
+local yLimit = 1000
+local teleportRate = 0.39
 local baseplate = nil
+local AutoBattleEnabled = true
+local Main = nil
+local WildBattleToggle = false
+local FastForwardToggle = false
 
 -- Clean up existing sounds
 for _, sound in pairs(workspace:GetDescendants()) do
@@ -41,252 +44,387 @@ local function playMusic()
     musicSound:Play()
 end
 
--- Baseplate Management
-local function manageBaseplate()
-    if baseplate and baseplate.Parent then
-        baseplate:Destroy()
-        baseplate = nil
+-- Anti-lag system
+local function optimizeGame()
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    game.Lighting.GlobalShadows = false
+    for _,v in pairs(game.Workspace:GetDescendants()) do
+        if v:IsA("ParticleEmitter") or v:IsA("Trail") then
+            v.Enabled = false
+        elseif v:IsA("BasePart") and v.Material == Enum.Material.Grass then
+            v.Material = Enum.Material.SmoothPlastic
+        end
+    end
+end
+
+local function deactivateLag()
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+    game.Lighting.GlobalShadows = true
+    for _,v in pairs(game.Workspace:GetDescendants()) do
+        if v:IsA("ParticleEmitter") or v:IsA("Trail") then
+            v.Enabled = true
+        end
+    end
+end
+
+-- Battle Detection
+local function isInBattle()
+    return PlayerGui:FindFirstChild("BattleGui", true) ~= nil
+end
+
+-- Tabs
+local MainTab = Window:CreateTab("Main Controls", "settings")
+local VisualTab = Window:CreateTab("Visual", "eye")
+local BattleTab = Window:CreateTab("Battle System", "swords")
+
+-- Music Controls
+MainTab:CreateSection("Music System")
+
+MainTab:CreateButton({
+   Name = "▶️ PLAY MUSIC",
+   Callback = function()
+        playMusic()
         Rayfield:Notify({
-            Title = "Platform Removed",
-            Content = "The baseplate has been deleted",
-            Duration = 2,
-            Image = "trash-2"
+            Title = "MUSIC STARTED",
+            Content = "Now playing track ID: "..musicId,
+            Duration = 3,
+            Image = "music"
         })
-    else
+   end
+})
+
+MainTab:CreateButton({
+   Name = "⏹ STOP MUSIC",
+   Callback = function()
+        if musicSound then 
+            musicSound:Stop()
+            Rayfield:Notify({
+                Title = "MUSIC STOPPED",
+                Content = "Audio playback disabled",
+                Duration = 2,
+                Image = "volume-x"
+            })
+        end
+   end
+})
+
+-- Hunting Controls
+MainTab:CreateSection("Hunting System")
+
+local TeleportToggle = MainTab:CreateToggle({
+   Name = "⚡ AUTO-TELEPORT",
+   CurrentValue = false,
+   Callback = function(Value)
+        if Value then 
+            playMusic()
+            Rayfield:Notify({
+                Title = "HUNTING MODE",
+                Content = "Teleport system activated",
+                Duration = 3,
+                Image = "target"
+            })
+        else
+            Rayfield:Notify({
+                Title = "HUNTING MODE",
+                Content = "Teleport system deactivated",
+                Duration = 3,
+                Image = "circle-slash"
+            })
+        end
+   end
+})
+
+MainTab:CreateSlider({
+   Name = "📏 Y-AXIS LIMIT",
+   Range = {1, 5000},
+   Increment = 1,
+   Suffix = "studs",
+   CurrentValue = 1000,
+   Callback = function(Value)
+        yLimit = Value
+   end
+})
+
+MainTab:CreateSlider({
+   Name = "⏱ TELEPORT RATE",
+   Range = {0.1, 1},
+   Increment = 0.01,
+   Suffix = "seconds",
+   CurrentValue = 0.39,
+   Callback = function(Value)
+        teleportRate = Value
+        Rayfield:Notify({
+            Title = "SYSTEM UPDATE",
+            Content = "Teleport delay: "..Value.." seconds",
+            Duration = 2,
+            Image = "clock"
+        })
+   end
+})
+
+-- Battle System Controls
+BattleTab:CreateSection("Auto-Battle Settings")
+
+BattleTab:CreateToggle({
+    Name = "⚔️ AUTO-BATTLE SYSTEM",
+    CurrentValue = AutoBattleEnabled,
+    Callback = function(Value)
+        AutoBattleEnabled = Value
+        Rayfield:Notify({
+            Title = "BATTLE SYSTEM",
+            Content = Value and "Auto-battle enabled" or "Auto-battle disabled",
+            Duration = 2,
+            Image = "swords"
+        })
+    end
+})
+
+BattleTab:CreateToggle({
+    Name = "🌿 AUTO-SPAWN WILD BATTLES",
+    CurrentValue = false,
+    Callback = function(Value)
+        WildBattleToggle = Value
+        if Value then
+            if not Main then
+                for _,v in pairs(getgc(true)) do
+                    if typeof(v) == "table" and rawget(v, "DataManager") then
+                        Main = v
+                        break
+                    end
+                end
+            end
+            
+            if Main then
+                Rayfield:Notify({
+                    Title = "BATTLE SPAWNER",
+                    Content = "Wild battle spawner activated",
+                    Duration = 3,
+                    Image = "swords"
+                })
+            else
+                Rayfield:Notify({
+                    Title = "ERROR",
+                    Content = "Could not find game data table",
+                    Duration = 5,
+                    Image = "alert-triangle"
+                })
+                WildBattleToggle = false
+            end
+        else
+            Rayfield:Notify({
+                Title = "BATTLE SPAWNER",
+                Content = "Wild battle spawner deactivated",
+                Duration = 3,
+                Image = "circle-slash"
+            })
+        end
+    end
+})
+
+BattleTab:CreateToggle({
+    Name = "⏩ BATTLE FAST-FORWARD",
+    CurrentValue = false,
+    Callback = function(Value)
+        FastForwardToggle = Value
+        if Value then
+            if not Main then
+                for _,v in pairs(getgc(true)) do
+                    if typeof(v) == "table" and rawget(v, "DataManager") then
+                        Main = v
+                        break
+                    end
+                end
+            end
+            
+            if Main then
+                Rayfield:Notify({
+                    Title = "BATTLE SPEED",
+                    Content = "Battle fast-forward activated",
+                    Duration = 3,
+                    Image = "fast-forward"
+                })
+            else
+                Rayfield:Notify({
+                    Title = "ERROR",
+                    Content = "Could not find game data table",
+                    Duration = 5,
+                    Image = "alert-triangle"
+                })
+                FastForwardToggle = false
+            end
+        else
+            Rayfield:Notify({
+                Title = "BATTLE SPEED",
+                Content = "Battle fast-forward deactivated",
+                Duration = 3,
+                Image = "clock"
+            })
+        end
+    end
+})
+
+-- Visual Baseplate Button
+VisualTab:CreateButton({
+   Name = "🟩 SPAWN BASEPLATE",
+   Callback = function()
+        if baseplate then baseplate:Destroy() end
         baseplate = Instance.new("Part", workspace)
         baseplate.Size = Vector3.new(2000, 5, 2000)
         baseplate.Position = character.HumanoidRootPart.Position + Vector3.new(0, 50, 0)
         baseplate.Anchored = true
         baseplate.Color = Color3.fromRGB(0, 200, 100)
         baseplate.Material = Enum.Material.Neon
-        baseplate.Name = "PremiumBaseplate"
+        baseplate.Name = "OwnerBaseplate"
         baseplate.Transparency = 0.3
-        
+
         coroutine.wrap(function()
             while baseplate and baseplate.Parent do
                 baseplate.Position = character.HumanoidRootPart.Position + Vector3.new(0, 50, 0)
                 task.wait(0.1)
             end
         end)()
-        
+
         Rayfield:Notify({
-            Title = "Platform Created",
-            Content = "2000x5x2000 platform spawned",
+            Title = "VISUAL SYSTEM",
+            Content = "Baseplate spawned 50 studs above",
             Duration = 3,
             Image = "box"
         })
-    end
-end
+   end
+})
 
--- Main Controls Tab
-local MainTab = Window:CreateTab("Main Controls", "settings")
+-- Anti-Lag Buttons
+VisualTab:CreateSection("Anti-Lag System")
 
--- Music Controls
-local MusicSection = MainTab:CreateSection("Music System", "music")
-
-local PlayButton = MainTab:CreateButton({
-   Name = "Play Music",
-   Callback = function()
-        playMusic()
+VisualTab:CreateButton({
+    Name = "🚀 ENABLE ANTI-LAG",
+    Callback = function()
+        optimizeGame()
         Rayfield:Notify({
-            Title = "Music Enabled",
-            Content = "Now playing background music",
+            Title = "ANTI-LAG ACTIVE",
+            Content = "Performance optimizations applied",
             Duration = 3,
-            Image = "music"
+            Image = "activity"
         })
-   end,
+    end
 })
 
-local StopButton = MainTab:CreateButton({
-   Name = "Stop Music",
-   Callback = function()
-        if musicSound then 
-            musicSound:Stop()
-            Rayfield:Notify({
-                Title = "Music Disabled",
-                Content = "Audio stopped",
-                Duration = 2,
-                Image = "volume-x"
-            })
-        end
-   end,
-})
-
--- Teleport System
-local TeleportSection = MainTab:CreateSection("Teleport System", "move-3d")
-
-local yLimit = 1000
-local teleportRate = 0.5
-
-local TeleportToggle = MainTab:CreateToggle({
-   Name = "Auto-Teleport to Loomians",
-   CurrentValue = false,
-   Flag = "AutoTeleportToggle",
-   Callback = function(Value)
-        if Value then 
-            playMusic()
-            Rayfield:Notify({
-                Title = "Teleport Enabled",
-                Content = "Now hunting Loomians automatically",
-                Duration = 3,
-                Image = "target"
-            })
-        else
-            Rayfield:Notify({
-                Title = "Teleport Disabled",
-                Content = "Auto-hunting paused",
-                Duration = 3,
-                Image = "circle-slash"
-            })
-        end
-   end,
-})
-
-local YLimitSlider = MainTab:CreateSlider({
-   Name = "Y-Axis Limit",
-   Range = {1, 5000},
-   Increment = 1,
-   Suffix = "studs",
-   CurrentValue = 1000,
-   Flag = "YLimitSlider",
-   Callback = function(Value)
-        yLimit = Value
-   end,
-})
-
-local TeleportSpeedSlider = MainTab:CreateSlider({
-   Name = "Teleport Speed",
-   Range = {0, 1},
-   Increment = 0.01,
-   Suffix = "seconds",
-   CurrentValue = 0.5,
-   Flag = "TeleportSpeedSlider",
-   Callback = function(Value)
-        teleportRate = Value
+VisualTab:CreateButton({
+    Name = "🛑 DISABLE ANTI-LAG",
+    Callback = function()
+        deactivateLag()
         Rayfield:Notify({
-            Title = "Teleport Speed Updated",
-            Content = string.format("Delay set to %.2f seconds", Value),
-            Duration = 2,
-            Image = "clock"
+            Title = "ANTI-LAG DISABLED",
+            Content = "Settings reverted to default",
+            Duration = 3,
+            Image = "power"
         })
-   end,
-})
-
--- Visual Tab
-local VisualTab = Window:CreateTab("Visual Tools", "eye")
-
-local VisualSection = VisualTab:CreateSection("Visual Effects", "palette")
-
-local BaseplateButton = VisualTab:CreateButton({
-   Name = "Toggle Baseplate",
-   Callback = manageBaseplate,
-})
-
-local CharacterColorPicker = VisualTab:CreateColorPicker({
-    Name = "Character Color",
-    Color = Color3.fromRGB(255,255,255),
-    Flag = "CharacterColorPicker",
-    Callback = function(Value)
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.Color = Value
-            end
-        end
     end
 })
 
--- Utility Tab
-local UtilityTab = Window:CreateTab("Utilities", "wrench")
-
-local UtilitySection = UtilityTab:CreateSection("Game Utilities", "tool")
-
-local AntiAFKToggle = UtilityTab:CreateToggle({
-   Name = "Anti-AFK",
-   CurrentValue = false,
-   Flag = "AntiAFKToggle",
-   Callback = function(Value)
-        if Value then
-            Rayfield:Notify({
-                Title = "Anti-AFK Enabled",
-                Content = "You won't be kicked for inactivity",
-                Duration = 3,
-                Image = "user-check"
-            })
-        else
-            Rayfield:Notify({
-                Title = "Anti-AFK Disabled",
-                Content = "Normal AFK rules apply",
-                Duration = 3,
-                Image = "user-x"
-            })
-        end
-   end,
-})
-
-local FPSBoostToggle = UtilityTab:CreateToggle({
-   Name = "FPS Boost",
-   CurrentValue = false,
-   Flag = "FPSBoostToggle",
-   Callback = function(Value)
-        if Value then
-            settings().Rendering.QualityLevel = 1
-            Rayfield:Notify({
-                Title = "FPS Boost Enabled",
-                Content = "Graphics quality reduced for performance",
-                Duration = 3,
-                Image = "zap"
-            })
-        else
-            settings().Rendering.QualityLevel = 21
-            Rayfield:Notify({
-                Title = "FPS Boost Disabled",
-                Content = "Graphics quality restored",
-                Duration = 3,
-                Image = "monitor"
-            })
-        end
-   end,
-})
-
--- Loomian Detection and Teleport System
-local function getLoomians()
-    local loomians = {}
+-- Egg Detection System
+local function getEggs()
+    local eggs = {}
     for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and obj.Name:lower():find("loomian") and obj.Position.Y <= yLimit then
-            table.insert(loomians, obj)
+        if obj:IsA("BasePart") and obj.Name == "Egg" and obj.Position.Y <= yLimit then
+            table.insert(eggs, obj)
         end
     end
-    return loomians
+    return eggs
 end
 
 -- Main Hunting Loop
 task.spawn(function()
-    while true do
-        if TeleportToggle.CurrentValue then
-            local loomians = getLoomians()
-            for _, loomian in ipairs(loomians) do
-                if not TeleportToggle.CurrentValue then break end
-                if loomian and loomian.Parent then
-                    humanoid.RootPart.CFrame = CFrame.new(loomian.Position)
-                    task.wait(teleportRate > 0 and teleportRate or 0)
+    while task.wait() do
+        if TeleportToggle.CurrentValue and not isInBattle() then
+            local eggs = getEggs()
+            for _, egg in ipairs(eggs) do
+                if not TeleportToggle.CurrentValue or isInBattle() then 
+                    if isInBattle() then
+                        Rayfield:Notify({
+                            Title = "COMBAT DETECTED",
+                            Content = "Teleportation paused",
+                            Duration = 3,
+                            Image = "swords"
+                        })
+                    end
+                    break 
+                end
+                if egg and egg.Parent then
+                    humanoid.RootPart.CFrame = CFrame.new(egg.Position)
+                    task.wait(teleportRate)
                 end
             end
         end
-        task.wait()
     end
 end)
 
--- Anti-AFK System
+-- Battle Loop
 task.spawn(function()
-    while true do
-        if AntiAFKToggle.CurrentValue then
-            game:GetService("Players").LocalPlayer.Idled:Connect(function()
-                game:GetService("VirtualUser"):Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
-                task.wait(1)
-                game:GetService("VirtualUser"):Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+    while task.wait() do
+        if AutoBattleEnabled then
+            local BattleGui = PlayerGui:FindFirstChild("BattleGui", true)
+            if BattleGui then
+                local clickMove3 = BattleGui:FindFirstChild("Move3", true) and BattleGui:FindFirstChild("Move3", true).Button
+                
+                local clickFight, restFight
+                for _, v in ipairs(BattleGui:GetChildren()) do
+                    if v:IsA("ImageLabel") then
+                        if v.ImageColor3 == Color3.fromRGB(218, 83, 255) then
+                            restFight = v:FindFirstChild("Button")
+                        elseif v.ImageColor3 == Color3.fromRGB(255, 102, 102) then
+                            clickFight = v:FindFirstChild("Button")
+                        end
+                    end
+                end
+
+                if clickFight and clickFight.Parent.Visible then
+                    local pos = clickFight.AbsolutePosition + Vector2.new(clickFight.AbsoluteSize.X/2, clickFight.AbsoluteSize.Y/2)
+                    mousemoveabs(pos.X, pos.Y)
+                    mouse1click()
+                    task.wait(1)
+                end
+
+                if clickMove3 and clickMove3.Parent.Visible then
+                    local pos = clickMove3.AbsolutePosition + Vector2.new(clickMove3.AbsoluteSize.X/2, clickMove3.AbsoluteSize.Y/2)
+                    mousemoveabs(pos.X, pos.Y)
+                    mouse1click()
+                    task.wait(0.3)
+                elseif restFight and restFight.Parent.Visible then
+                    local pos = restFight.AbsolutePosition + Vector2.new(restFight.AbsoluteSize.X/2, restFight.AbsoluteSize.Y/2)
+                    mousemoveabs(pos.X, pos.Y)
+                    mouse1click()
+                    task.wait(0.3)
+                end
+            end
+        end
+    end
+end)
+
+-- Wild Battle Spawner Loop
+task.spawn(function()
+    while task.wait(1) do
+        if WildBattleToggle and Main and Main.DataManager.currentChunk.regionData.Grass then
+            if Main.Battle.currentBattle then
+                Main.Battle.currentBattle.BattleEnded:Fire()
+                Main.Battle.currentBattle = nil
+                task.wait(0.5)
+            end
+            Main.Battle.doWildBattle(Main.Battle, Main.DataManager.currentChunk.regionData.Grass, {})
+        end
+    end
+end)
+
+-- Battle Fast-Forward Loop
+task.spawn(function()
+    while task.wait() do
+        if FastForwardToggle and Main then
+            pcall(function()
+                if Main.Battle.currentBattle then
+                    Main.Battle.currentBattle.fastForward = true
+                end
             end)
         end
-        task.wait(10)
     end
 end)
 
@@ -296,8 +434,8 @@ Rayfield:LoadConfiguration()
 -- Welcome Notification
 task.wait(1)
 Rayfield:Notify({
-   Title = "Loomian Legacy Premium",
-   Content = "Premium tools successfully loaded!\nEnjoy your enhanced experience.",
+   Title = "OWNER SYSTEM ONLINE",
+   Content = "Premium controls activated\nTeleport rate adjustable",
    Duration = 6,
-   Image = "sparkles"
+   Image = "shield-check"
 })
