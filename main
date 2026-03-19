@@ -5,7 +5,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "Koontang is fat",
     LoadingTitle = "Loading Koontang is fat...",
-    LoadingSubtitle = "REQ Double Hook Method",
+    LoadingSubtitle = "Fixed Hook Method",
     Theme = "Bloom",
     ConfigurationSaving = {
         Enabled = true,
@@ -31,135 +31,91 @@ local REQEvent = game:GetService("ReplicatedStorage").Remote.REQ
 local playerKey = ""
 local capturedKey = ""
 
--- ========== DOUBLE HOOK METHOD FOR REQ ==========
-local function SetupDoubleHookREQ()
-    print("🔄 Initializing Double Hook Method for REQ...")
+-- ========== FIXED HOOK METHOD (WON'T BREAK RETURNS) ==========
+local function SetupFixedHook()
+    print("🔄 Initializing Fixed Hook Method...")
     
-    -- First hook: Metamethod hook for __namecall (InvokeServer)
-    local mtHook; mtHook = hookmetamethod(game, "__namecall", function(...)
-        local self = ...
-        local method = getnamecallmethod()
-        
-        if rawequal(self, REQEvent) and method == "InvokeServer" then
-            local Args = table.pack(...)
-            
-            -- Call original first
-            local Result = table.pack(
-                mtHook(self, table.unpack(Args, 1, Args.n))
-            )
-            
-            -- Log the intercepted data
-            print("🔥 DOUBLE HOOK 1 - __namecall intercepted REQ!")
-            print("Method: InvokeServer")
-            for i = 1, Args.n do
-                print("Arg " .. i .. ":", Args[i])
-                print("Arg " .. i .. " type:", type(Args[i]))
-                if type(Args[i]) == "string" and #Args[i] > 10 then
-                    capturedKey = Args[i]
-                    print("✅ KEY CAPTURED: " .. capturedKey)
-                    KeyInput:Set(capturedKey)
-                end
-            end
-            print("================================")
-            
-            return table.unpack(Result, 1, Result.n)
-        end
-        
-        return mtHook(...)
-    end)
-    
-    -- Second hook: Direct InvokeServer hook
-    local OldInvokeServer; OldInvokeServer = hookfunction(REQEvent.InvokeServer, function(...)
-        local self = ...
-        
-        if rawequal(self, REQEvent) then
-            local Args = table.pack(...)
-            
-            -- Call original
-            local Result = table.pack(
-                OldInvokeServer(table.unpack(Args, 1, Args.n))
-            )
-            
-            -- Log the intercepted data
-            print("🔥 DOUBLE HOOK 2 - Direct InvokeServer intercepted!")
-            for i = 1, Args.n do
-                print("Arg " .. i .. ":", Args[i])
-                print("Arg " .. i .. " type:", type(Args[i]))
-                if type(Args[i]) == "string" and #Args[i] > 10 then
-                    capturedKey = Args[i]
-                    print("✅ KEY CAPTURED: " .. capturedKey)
-                    KeyInput:Set(capturedKey)
-                end
-            end
-            print("================================")
-            
-            return table.unpack(Result, 1, Result.n)
-        end
-        
-        return OldInvokeServer(self, ...)
-    end)
-    
-    print("✅ Double Hook for REQ activated!")
-    print("📋 Now use the rally feature and check console (F9)")
-end
-
--- Alternative: Monitor all REQ calls
-local function MonitorREQCalls()
-    print("👁️ Monitoring all REQ calls...")
-    
-    -- Simple hook to just log without modifying
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    -- Store original
+    local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        -- Get method and args
         local method = getnamecallmethod()
         local args = {...}
         
+        -- Call original FIRST and store results
+        local results = {oldNamecall(self, ...)}
+        
+        -- Only do our logging AFTER the original call
         if self == REQEvent and method == "InvokeServer" then
-            print("📡 REQ Call Detected!")
-            for i, v in ipairs(args) do
-                print("  Arg" .. i .. ": " .. tostring(v))
-                if type(v) == "string" and #v > 10 then
-                    capturedKey = v
-                    print("🎯 KEY FOUND: " .. v)
-                    KeyInput:Set(v)
+            -- Use pcall to prevent any errors from affecting the game
+            pcall(function()
+                print("📡 REQ Intercepted (Post-Call)")
+                for i = 1, #args do
+                    print("  Arg" .. i .. ": " .. tostring(args[i]))
+                    if type(args[i]) == "string" and #args[i] > 10 then
+                        capturedKey = args[i]
+                        print("✅ KEY CAPTURED: " .. capturedKey)
+                        -- Update UI safely
+                        pcall(function()
+                            KeyInput:Set(capturedKey)
+                        end)
+                    end
                 end
-            end
+            end)
         end
         
-        return oldNamecall(self, ...)
+        -- Return original results exactly as they were
+        return unpack(results)
     end)
     
-    print("✅ REQ Monitor activated!")
+    print("✅ Fixed Hook activated - Returns won't break!")
+end
+
+-- Even simpler: Just log to console without any UI updates
+local function SetupSafeLogger()
+    print("📝 Setting up safe logger...")
+    
+    local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
+        local results = {oldNamecall(self, ...)}
+        
+        if self == REQEvent and method == "InvokeServer" then
+            -- Just print, no UI updates
+            print("🔍 REQ Called with args:", unpack(args))
+        end
+        
+        return unpack(results)
+    end)
+    
+    print("✅ Safe logger active")
 end
 
 -- UI for Key Grabber tab
-local ActivateButton = GrabberTab:CreateButton({
-    Name = "Activate Double Hook (REQ)",
+local FixedHookButton = GrabberTab:CreateButton({
+    Name = "Activate Fixed Hook (Safe)",
     Callback = function()
-        SetupDoubleHookREQ()
+        SetupFixedHook()
     end
 })
 
-local MonitorButton = GrabberTab:CreateButton({
-    Name = "Simple REQ Monitor",
+local SafeLoggerButton = GrabberTab:CreateButton({
+    Name = "Safe Logger Only",
     Callback = function()
-        MonitorREQCalls()
+        SetupSafeLogger()
     end
 })
 
 local ClearButton = GrabberTab:CreateButton({
     Name = "Clear Console",
     Callback = function()
-        for i = 1, 50 do print("") end
-        print("=== CONSOLE CLEARED ===")
+        for i = 1, 30 do print("") end
     end
 })
 
 local Instructions = GrabberTab:CreateLabel("INSTRUCTIONS:")
-local Step1 = GrabberTab:CreateLabel("1. Click 'Activate Double Hook (REQ)'")
-local Step2 = GrabberTab:CreateLabel("2. Open Console (F9)")
-local Step3 = GrabberTab:CreateLabel("3. Use the rally feature in-game")
-local Step4 = GrabberTab:CreateLabel("4. Look for 'KEY CAPTURED' in console")
-local Step5 = GrabberTab:CreateLabel("5. Key will auto-fill below")
+local Step1 = GrabberTab:CreateLabel("1. Click 'Activate Fixed Hook'")
+local Step2 = GrabberTab:CreateLabel("2. Use rally feature normally")
+local Step3 = GrabberTab:CreateLabel("3. Key will be captured safely")
 
 -- ========== AUTO RALLY SECTION ==========
 local function ExecuteRally()
@@ -170,24 +126,13 @@ local function ExecuteRally()
         return
     end
     
-    print("🚀 Executing rally with key: " .. keyToUse)
-    
+    -- Use pcall to prevent crashes
     local success, err = pcall(function()
         REQEvent:InvokeServer(
             keyToUse,
             "PDS",
             "handleRallied",
-            {
-                2,
-                2,
-                2,
-                2,
-                2,
-                2,
-                2,
-                2,
-                2
-            }
+            {2, 2, 2, 2, 2, 2, 2, 2, 2}
         )
     end)
     
@@ -207,12 +152,8 @@ local function StartAutoRally(interval)
         return
     end
     
-    if loopConnection then
-        loopConnection:Disconnect()
-    end
-    
     isAutoRallyEnabled = true
-    print("▶️ Auto Rally started with key: " .. keyToUse)
+    print("▶️ Auto Rally started - Interval: " .. interval .. "s")
     
     task.spawn(function()
         while isAutoRallyEnabled do
@@ -224,27 +165,19 @@ end
 
 local function StopAutoRally()
     isAutoRallyEnabled = false
-    if loopConnection then
-        loopConnection:Disconnect()
-        loopConnection = nil
-    end
     print("⏹️ Auto Rally stopped")
 end
 
 -- Auto Rally UI
 local KeyInput = Tab:CreateInput({
-    Name = "Enter Your Key (or capture with Grabber)",
-    PlaceholderText = "Key will auto-fill when captured",
+    Name = "Your Key",
+    PlaceholderText = "Key will appear here",
     RemoveTextAfterFocusLost = false,
     Flag = "PlayerKey",
     Callback = function(Text)
         playerKey = Text
-        print("🔑 Manual key set to: " .. Text)
     end
 })
-
-local CurrentKeyLabel = Tab:CreateLabel("Current Key: None")
-local CapturedKeyLabel = Tab:CreateLabel("Captured Key: None")
 
 local IntervalSlider = Tab:CreateSlider({
     Name = "Interval (seconds)",
@@ -274,32 +207,6 @@ local ManualButton = Tab:CreateButton({
     end
 })
 
-local TestKeyButton = Tab:CreateButton({
-    Name = "Test Current Key",
-    Callback = function()
-        local keyToUse = playerKey ~= "" and playerKey or capturedKey
-        if keyToUse ~= "" then
-            print("🔑 Current active key: " .. keyToUse)
-            print("📏 Key length: " .. #keyToUse)
-        else
-            print("⚠️ No key available")
-        end
-    end
-})
-
--- Update status labels
-task.spawn(function()
-    while true do
-        if capturedKey ~= "" then
-            CapturedKeyLabel:Set("Captured Key: " .. string.sub(capturedKey, 1, 20) .. "...")
-        end
-        if playerKey ~= "" then
-            CurrentKeyLabel:Set("Current Key: " .. string.sub(playerKey, 1, 20) .. "...")
-        end
-        task.wait(1)
-    end
-end)
-
 -- Load configuration
 Rayfield:LoadConfiguration()
 
@@ -307,5 +214,5 @@ Rayfield:LoadConfiguration()
 task.wait(1)
 playerKey = KeyInput.CurrentValue or ""
 if playerKey ~= "" then
-    print("💾 Loaded saved key: " .. playerKey)
+    print("💾 Loaded saved key")
 end
