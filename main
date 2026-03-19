@@ -5,7 +5,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "Koontang is fat",
     LoadingTitle = "Loading Koontang is fat...",
-    LoadingSubtitle = "With Working Hooks",
+    LoadingSubtitle = "Fixed Version",
     Theme = "Bloom",
     ConfigurationSaving = {
         Enabled = true,
@@ -29,87 +29,62 @@ local isAutoRallyEnabled = false
 local REQEvent = game:GetService("ReplicatedStorage").Remote.REQ
 local playerKey = ""
 local capturedKey = ""
-local hookInstalled = false
 
--- ========== WORKING HOOK METHOD (WON'T BREAK MENU) ==========
-local function InstallKeyGrabberHook()
-    if hookInstalled then
-        print("⚠️ Hook already installed!")
-        return
-    end
-    
-    print("🔄 Installing key grabber hook...")
-    
-    -- Save the original
-    local oldNamecall
-    
-    -- Use pcall to prevent crashes
-    local success = pcall(function()
-        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-            -- ALWAYS call original first to prevent breaking things
-            local results = {oldNamecall(self, ...)}
-            
-            -- Only do our stuff after the original call
-            local success2, err = pcall(function()
-                local method = getnamecallmethod()
-                
-                -- Check if this is our target
-                if self == REQEvent and method == "InvokeServer" then
-                    local args = {...}
-                    
-                    -- Log what we found
-                    print("🔑 REQ Intercepted!")
-                    for i = 1, #args do
-                        print("  Arg" .. i .. ": " .. tostring(args[i]))
-                        if type(args[i]) == "string" and #args[i] > 10 then
-                            capturedKey = args[i]
-                            print("✅ KEY CAPTURED: " .. capturedKey)
-                            
-                            -- Update UI safely
-                            pcall(function()
-                                KeyInput:Set(capturedKey)
-                                StatusLabel:Set("Key captured: " .. string.sub(capturedKey, 1, 15) .. "...")
-                            end)
-                        end
-                    end
-                end
-            end)
-            
-            if not success2 then
-                warn("Hook error (ignored): " .. tostring(err))
-            end
-            
-            return unpack(results)
-        end)
-    end)
-    
-    if success then
-        hookInstalled = true
-        print("✅ Hook installed successfully!")
-        print("📋 Now use the rally feature - key will be captured automatically")
-    else
-        print("❌ Failed to install hook")
-    end
+-- ========== SIMPLE KEY GRABBER (NO HOOKS) ==========
+-- This just lets you manually enter the key
+local function ManualKeyEntry()
+    print("=== MANUAL KEY ENTRY ===")
+    print("If you know your key, just type it in the input box")
+    print("If you don't know it, try:")
+    print("1. Check other scripts")
+    print("2. Ask other players")
+    print("3. Look in the game's Discord")
 end
 
--- Function to remove hook (if needed)
-local function RemoveHook()
-    if hookInstalled then
-        -- Can't really remove a hook, but we can set a flag
-        hookInstalled = false
-        print("🔄 Hook disabled (flag set)")
+-- Alternative: Try to find key in game memory (safe)
+local function ScanGameForKeys()
+    print("🔍 Scanning game for potential keys...")
+    local found = 0
+    
+    -- Check LocalPlayer for any strings
+    local function checkObject(obj, name)
+        if not obj then return end
+        
+        -- Check values
+        if obj:IsA("StringValue") and #obj.Value > 10 then
+            print("Found string in " .. name .. ": " .. obj.Value)
+            found = found + 1
+        end
+        
+        -- Check children
+        for _, child in pairs(obj:GetChildren()) do
+            checkObject(child, name .. "." .. child.Name)
+        end
     end
+    
+    -- Start scanning from common locations
+    checkObject(game.Players.LocalPlayer, "LocalPlayer")
+    checkObject(game.ReplicatedStorage, "ReplicatedStorage")
+    
+    if found == 0 then
+        print("No obvious keys found in memory")
+    end
+    print("Scan complete!")
 end
 
 -- UI for Key Grabber tab
-local InstallHookButton = GrabberTab:CreateButton({
-    Name = "Install Key Grabber Hook",
+local Instructions = GrabberTab:CreateLabel("HOW TO GET YOUR KEY:")
+local Method1 = GrabberTab:CreateLabel("1. Ask other players for their key")
+local Method2 = GrabberTab:CreateLabel("2. Check game Discord/community")
+local Method3 = GrabberTab:CreateLabel("3. Look in other scripts you have")
+local Method4 = GrabberTab:CreateLabel("4. Try common patterns")
+
+local ScanButton = GrabberTab:CreateButton({
+    Name = "Scan Game for Keys",
     Callback = function()
-        InstallKeyGrabberHook()
+        ScanGameForKeys()
     end
 })
-
-local StatusLabel = GrabberTab:CreateLabel("Status: Hook not installed")
 
 local ClearButton = GrabberTab:CreateButton({
     Name = "Clear Console",
@@ -118,22 +93,16 @@ local ClearButton = GrabberTab:CreateButton({
     end
 })
 
-local Instructions = GrabberTab:CreateLabel("INSTRUCTIONS:")
-local Step1 = GrabberTab:CreateLabel("1. Click 'Install Key Grabber Hook'")
-local Step2 = GrabberTab:CreateLabel("2. Use the rally feature in-game")
-local Step3 = GrabberTab:CreateLabel("3. Key will appear below when captured")
-local Step4 = GrabberTab:CreateLabel("4. Switch to Auto Rally tab to use it")
-
 -- ========== AUTO RALLY SECTION ==========
 local function ExecuteRally()
     local keyToUse = playerKey ~= "" and playerKey or capturedKey
     
     if keyToUse == "" then
-        print("⚠️ No key available! Use Key Grabber first.")
+        print("⚠️ Please enter your key first!")
         return
     end
     
-    print("🚀 Executing rally with key: " .. keyToUse)
+    print("🚀 Executing rally...")
     
     local success, err = pcall(function()
         REQEvent:InvokeServer(
@@ -152,10 +121,8 @@ local function ExecuteRally()
 end
 
 local function StartAutoRally(interval)
-    local keyToUse = playerKey ~= "" and playerKey or capturedKey
-    
-    if keyToUse == "" then
-        print("⚠️ No key available! Use Key Grabber first.")
+    if playerKey == "" and capturedKey == "" then
+        print("⚠️ Please enter your key first!")
         AutoRallyToggle:Set(false)
         return
     end
@@ -178,12 +145,13 @@ end
 
 -- Auto Rally UI
 local KeyInput = Tab:CreateInput({
-    Name = "Your Key (auto-filled when captured)",
-    PlaceholderText = "Key will appear here automatically",
+    Name = "Enter Your Key",
+    PlaceholderText = "Type your key here...",
     RemoveTextAfterFocusLost = false,
     Flag = "PlayerKey",
     Callback = function(Text)
         playerKey = Text
+        print("🔑 Key set to: " .. Text)
     end
 })
 
@@ -215,25 +183,13 @@ local ManualButton = Tab:CreateButton({
     end
 })
 
-local ShowKeyButton = Tab:CreateButton({
-    Name = "Show Current Key",
-    Callback = function()
-        if capturedKey ~= "" then
-            print("🔑 Captured key: " .. capturedKey)
-        elseif playerKey ~= "" then
-            print("🔑 Manual key: " .. playerKey)
-        else
-            print("⚠️ No key available")
-        end
-    end
-})
-
--- Emergency reset
+-- Add a reset button in case menu breaks
 local ResetButton = Tab:CreateButton({
-    Name = "Emergency Reset",
+    Name = "Reset UI (if frozen)",
     Callback = function()
-        isAutoRallyEnabled = false
+        print("🔄 Attempting to reset...")
         AutoRallyToggle:Set(false)
+        isAutoRallyEnabled = false
         print("✅ Reset complete")
     end
 })
@@ -245,17 +201,5 @@ Rayfield:LoadConfiguration()
 task.wait(1)
 playerKey = KeyInput.CurrentValue or ""
 if playerKey ~= "" then
-    print("💾 Loaded saved key")
+    print("💾 Loaded saved key: " .. playerKey)
 end
-
--- Update status periodically
-task.spawn(function()
-    while true do
-        if hookInstalled then
-            StatusLabel:Set("Status: Hook Active ✅")
-        else
-            StatusLabel:Set("Status: Hook Inactive ❌")
-        end
-        task.wait(1)
-    end
-end)
