@@ -5,7 +5,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "Koontang is fat",
     LoadingTitle = "Loading Koontang is fat...",
-    LoadingSubtitle = "Safe REQ Hook",
+    LoadingSubtitle = "With Working Hooks",
     Theme = "Bloom",
     ConfigurationSaving = {
         Enabled = true,
@@ -26,111 +26,103 @@ local GrabberTab = Window:CreateTab("Key Grabber", 4483362458)
 
 -- Variables
 local isAutoRallyEnabled = false
-local loopConnection = nil
 local REQEvent = game:GetService("ReplicatedStorage").Remote.REQ
 local playerKey = ""
 local capturedKey = ""
-local hookActive = false
+local hookInstalled = false
 
--- ========== SAFE KEY GRABBER (NO CRASH) ==========
-local function SetupSafeKeyGrabber()
-    if hookActive then
-        print("⚠️ Hook already active!")
+-- ========== WORKING HOOK METHOD (WON'T BREAK MENU) ==========
+local function InstallKeyGrabberHook()
+    if hookInstalled then
+        print("⚠️ Hook already installed!")
         return
     end
     
-    print("🔄 Activating Safe Key Grabber...")
-    hookActive = true
+    print("🔄 Installing key grabber hook...")
     
-    -- Store original functions
+    -- Save the original
     local oldNamecall
-    local oldInvokeServer
     
     -- Use pcall to prevent crashes
-    local success, result = pcall(function()
-        -- Single hook method (safer than double hook)
+    local success = pcall(function()
         oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-            local success, result = pcall(function()
+            -- ALWAYS call original first to prevent breaking things
+            local results = {oldNamecall(self, ...)}
+            
+            -- Only do our stuff after the original call
+            local success2, err = pcall(function()
                 local method = getnamecallmethod()
-                local args = {...}
                 
                 -- Check if this is our target
                 if self == REQEvent and method == "InvokeServer" then
-                    print("📡 REQ Intercepted!")
+                    local args = {...}
+                    
+                    -- Log what we found
+                    print("🔑 REQ Intercepted!")
                     for i = 1, #args do
                         print("  Arg" .. i .. ": " .. tostring(args[i]))
-                        -- Look for long strings (keys)
                         if type(args[i]) == "string" and #args[i] > 10 then
                             capturedKey = args[i]
-                            print("✅ KEY FOUND: " .. capturedKey)
+                            print("✅ KEY CAPTURED: " .. capturedKey)
                             
-                            -- Safely update UI
+                            -- Update UI safely
                             pcall(function()
                                 KeyInput:Set(capturedKey)
-                                StatusLabel:Set("✅ Key captured!")
+                                StatusLabel:Set("Key captured: " .. string.sub(capturedKey, 1, 15) .. "...")
                             end)
                         end
                     end
                 end
             end)
             
-            -- Always call original, even if our code fails
-            return oldNamecall(self, ...)
+            if not success2 then
+                warn("Hook error (ignored): " .. tostring(err))
+            end
+            
+            return unpack(results)
         end)
     end)
     
     if success then
-        print("✅ Safe Key Grabber activated!")
-        print("📋 Use the rally feature now...")
+        hookInstalled = true
+        print("✅ Hook installed successfully!")
+        print("📋 Now use the rally feature - key will be captured automatically")
     else
-        print("❌ Failed to activate: " .. tostring(result))
-        hookActive = false
+        print("❌ Failed to install hook")
     end
 end
 
--- Even safer: Just log without modifying anything
-local function SetupLoggerOnly()
-    print("📝 Activating Logger Only Mode...")
-    
-    -- This just prints but doesn't interfere
-    local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        
-        -- Log but don't process args heavily
-        if self == REQEvent and method == "InvokeServer" then
-            print("🔍 REQ InvokeServer detected")
-        end
-        
-        return oldNamecall(self, ...)
-    end)
-    
-    print("✅ Logger activated - check console for 'REQ InvokeServer detected'")
+-- Function to remove hook (if needed)
+local function RemoveHook()
+    if hookInstalled then
+        -- Can't really remove a hook, but we can set a flag
+        hookInstalled = false
+        print("🔄 Hook disabled (flag set)")
+    end
 end
 
 -- UI for Key Grabber tab
-local SafeHookButton = GrabberTab:CreateButton({
-    Name = "Activate Safe Key Grabber",
+local InstallHookButton = GrabberTab:CreateButton({
+    Name = "Install Key Grabber Hook",
     Callback = function()
-        SetupSafeKeyGrabber()
+        InstallKeyGrabberHook()
     end
 })
 
-local LoggerButton = GrabberTab:CreateButton({
-    Name = "Logger Only (Safer)",
-    Callback = function()
-        SetupLoggerOnly()
-    end
-})
+local StatusLabel = GrabberTab:CreateLabel("Status: Hook not installed")
 
 local ClearButton = GrabberTab:CreateButton({
     Name = "Clear Console",
     Callback = function()
         for i = 1, 30 do print("") end
-        print("=== CONSOLE CLEARED ===")
     end
 })
 
-local StatusLabel = GrabberTab:CreateLabel("Status: Inactive")
+local Instructions = GrabberTab:CreateLabel("INSTRUCTIONS:")
+local Step1 = GrabberTab:CreateLabel("1. Click 'Install Key Grabber Hook'")
+local Step2 = GrabberTab:CreateLabel("2. Use the rally feature in-game")
+local Step3 = GrabberTab:CreateLabel("3. Key will appear below when captured")
+local Step4 = GrabberTab:CreateLabel("4. Switch to Auto Rally tab to use it")
 
 -- ========== AUTO RALLY SECTION ==========
 local function ExecuteRally()
@@ -141,7 +133,8 @@ local function ExecuteRally()
         return
     end
     
-    -- Use pcall to prevent crashes
+    print("🚀 Executing rally with key: " .. keyToUse)
+    
     local success, err = pcall(function()
         REQEvent:InvokeServer(
             keyToUse,
@@ -170,7 +163,6 @@ local function StartAutoRally(interval)
     isAutoRallyEnabled = true
     print("▶️ Auto Rally started - Interval: " .. interval .. "s")
     
-    -- Use simple task.wait loop
     task.spawn(function()
         while isAutoRallyEnabled do
             ExecuteRally()
@@ -186,13 +178,12 @@ end
 
 -- Auto Rally UI
 local KeyInput = Tab:CreateInput({
-    Name = "Your Key",
-    PlaceholderText = "Key will appear here when captured",
+    Name = "Your Key (auto-filled when captured)",
+    PlaceholderText = "Key will appear here automatically",
     RemoveTextAfterFocusLost = false,
     Flag = "PlayerKey",
     Callback = function(Text)
         playerKey = Text
-        print("🔑 Manual key: " .. Text)
     end
 })
 
@@ -237,6 +228,16 @@ local ShowKeyButton = Tab:CreateButton({
     end
 })
 
+-- Emergency reset
+local ResetButton = Tab:CreateButton({
+    Name = "Emergency Reset",
+    Callback = function()
+        isAutoRallyEnabled = false
+        AutoRallyToggle:Set(false)
+        print("✅ Reset complete")
+    end
+})
+
 -- Load configuration
 Rayfield:LoadConfiguration()
 
@@ -246,3 +247,15 @@ playerKey = KeyInput.CurrentValue or ""
 if playerKey ~= "" then
     print("💾 Loaded saved key")
 end
+
+-- Update status periodically
+task.spawn(function()
+    while true do
+        if hookInstalled then
+            StatusLabel:Set("Status: Hook Active ✅")
+        else
+            StatusLabel:Set("Status: Hook Inactive ❌")
+        end
+        task.wait(1)
+    end
+end)
