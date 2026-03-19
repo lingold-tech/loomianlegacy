@@ -1,68 +1,598 @@
--- Load the Rayfield Library
+-- Combined Script: Auto Rally + Owner's Edition Features
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
--- Create the main window with Bloom theme
 local Window = Rayfield:CreateWindow({
-    Name = "Koontang is fat",
-    LoadingTitle = "Loading Koontang is fat...",
-    LoadingSubtitle = "ULTRA SAFE METHOD",
-    Theme = "Bloom",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "KoontangIsFatConfig",
-        FileName = "Settings"
-    },
-    Discord = {
-        Enabled = false,
-        Invite = "noinvitelink",
-        RememberJoins = true
-    },
-    KeySystem = false
+   Name = "Koontang is fat",
+   LoadingTitle = "Premium Egg Hunter + Auto Rally",
+   LoadingSubtitle = "Owner's Edition",
+   Theme = "Bloom",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "KoontangIsFatConfig",
+      FileName = "Settings"
+   },
+   Discord = {
+      Enabled = false,
+      Invite = "noinvitelink",
+      RememberJoins = true
+   },
+   KeySystem = false
 })
 
--- Create tabs
-local Tab = Window:CreateTab("Auto Rally", 4483362458)
-local GrabberTab = Window:CreateTab("Key Grabber", 4483362458)
+-- Core Variables
+local player = game:GetService("Players").LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local PlayerGui = player:WaitForChild("PlayerGui")
+local musicId = 5410086218
+local musicSound
+local yLimit = 1000
+local teleportRate = 0.39
+local baseplate = nil
+local AutoBattleEnabled = true
+local Main = nil
+local WildBattleToggle = false
+local FastForwardToggle = false
 
--- Variables
-local isAutoRallyEnabled = false
+-- Rally Variables
+local isRallyRunning = false
 local REQEvent = game:GetService("ReplicatedStorage").Remote.REQ
 local playerKey = ""
-local capturedKey = ""
 
--- ========== ULTRA SAFE METHOD - NO HOOKS ==========
--- Instead of hooks, we'll just scan memory periodically
-local function ScanForKeys()
-    print("🔍 Scanning for keys in memory...")
-    
-    -- Check recent logs (if any)
-    local success, result = pcall(function()
-        -- Look for any strings in the game that might be keys
-        local function findStrings(obj, depth)
-            if depth > 3 then return end
-            
-            for _, child in pairs(obj:GetChildren()) do
-                -- Check string values
-                if child:IsA("StringValue") and #child.Value > 10 then
-                    print("Found potential key: " .. child.Value)
-                    if capturedKey == "" then
-                        capturedKey = child.Value
-                        KeyInput:Set(capturedKey)
-                    end
-                end
-                
-                -- Check object names
-                if #child.Name > 15 then
-                    print("Found long name: " .. child.Name)
-                end
-                
-                findStrings(child, depth + 1)
-            end
+-- Clean up existing sounds
+for _, sound in pairs(workspace:GetDescendants()) do
+    if sound:IsA("Sound") then sound:Destroy() end
+end
+
+-- Music System
+local function playMusic()
+    if musicSound then musicSound:Stop() end
+    musicSound = Instance.new("Sound")
+    musicSound.Parent = workspace
+    musicSound.SoundId = "rbxassetid://"..musicId
+    musicSound.Looped = true
+    musicSound.Volume = 0.5
+    musicSound:Play()
+end
+
+-- Anti-lag system
+local function optimizeGame()
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    game.Lighting.GlobalShadows = false
+    for _,v in pairs(game.Workspace:GetDescendants()) do
+        if v:IsA("ParticleEmitter") or v:IsA("Trail") then
+            v.Enabled = false
+        elseif v:IsA("BasePart") and v.Material == Enum.Material.Grass then
+            v.Material = Enum.Material.SmoothPlastic
         end
+    end
+end
+
+local function deactivateLag()
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+    game.Lighting.GlobalShadows = true
+    for _,v in pairs(game.Workspace:GetDescendants()) do
+        if v:IsA("ParticleEmitter") or v:IsA("Trail") then
+            v.Enabled = true
+        end
+    end
+end
+
+-- Battle Detection
+local function isInBattle()
+    return PlayerGui:FindFirstChild("BattleGui", true) ~= nil
+end
+
+-- Egg Detection System
+local function getEggs()
+    local eggs = {}
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Name == "Egg" and obj.Position.Y <= yLimit then
+            table.insert(eggs, obj)
+        end
+    end
+    return eggs
+end
+
+-- ========== RALLY SEQUENCE ==========
+local function RunRallySequence()
+    if playerKey == "" then
+        print("⚠️ Please enter your key first!")
+        return false
+    end
+    
+    print("🚀 Running rally sequence...")
+    
+    local success, err = pcall(function()
+        -- Step 1: ranchStatus
+        print("  Step 1: ranchStatus")
+        REQEvent:InvokeServer(
+            playerKey,
+            "PDS",
+            "ranchStatus"
+        )
         
-        findStrings(game:GetService("ReplicatedStorage"), 0)
+        -- Step 2: getRallied
+        print("  Step 2: getRallied")
+        REQEvent:InvokeServer(
+            playerKey,
+            "PDS",
+            "getRallied"
+        )
+        
+        -- Step 3: handleRallied (the actual claim)
+        print("  Step 3: handleRallied")
+        REQEvent:InvokeServer(
+            playerKey,
+            "PDS",
+            "handleRallied",
+            {
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2
+            }
+        )
     end)
     
+    if success then
+        print("✅ Rally sequence completed at: " .. os.date("%H:%M:%S"))
+        return true
+    else
+        print("❌ Sequence failed: " .. tostring(err))
+        return false
+    end
+end
+
+local function StartAutoRally(interval)
+    isRallyRunning = true
+    print("▶️ Auto Rally started - Running every " .. interval .. " minutes")
+    
+    task.spawn(function()
+        while isRallyRunning do
+            RunRallySequence()
+            task.wait(interval * 60)
+        end
+    end)
+end
+
+local function StopAutoRally()
+    isRallyRunning = false
+    print("⏹️ Auto Rally stopped")
+end
+
+-- Create Tabs
+local MainTab = Window:CreateTab("Main Controls", "settings")
+local RallyTab = Window:CreateTab("Auto Rally", "clock")
+local VisualTab = Window:CreateTab("Visual", "eye")
+local BattleTab = Window:CreateTab("Battle System", "swords")
+
+-- ========== MAIN TAB ==========
+MainTab:CreateSection("Music System")
+
+MainTab:CreateButton({
+   Name = "▶️ PLAY MUSIC",
+   Callback = function()
+        playMusic()
+        Rayfield:Notify({
+            Title = "MUSIC STARTED",
+            Content = "Now playing track ID: "..musicId,
+            Duration = 3,
+            Image = "music"
+        })
+   end
+})
+
+MainTab:CreateButton({
+   Name = "⏹ STOP MUSIC",
+   Callback = function()
+        if musicSound then 
+            musicSound:Stop()
+            Rayfield:Notify({
+                Title = "MUSIC STOPPED",
+                Content = "Audio playback disabled",
+                Duration = 2,
+                Image = "volume-x"
+            })
+        end
+   end
+})
+
+MainTab:CreateSection("Hunting System")
+
+local TeleportToggle = MainTab:CreateToggle({
+   Name = "⚡ AUTO-TELEPORT",
+   CurrentValue = false,
+   Flag = "TeleportToggle",
+   Callback = function(Value)
+        if Value then 
+            playMusic()
+            Rayfield:Notify({
+                Title = "HUNTING MODE",
+                Content = "Teleport system activated",
+                Duration = 3,
+                Image = "target"
+            })
+        else
+            Rayfield:Notify({
+                Title = "HUNTING MODE",
+                Content = "Teleport system deactivated",
+                Duration = 3,
+                Image = "circle-slash"
+            })
+        end
+   end
+})
+
+MainTab:CreateSlider({
+   Name = "📏 Y-AXIS LIMIT",
+   Range = {1, 5000},
+   Increment = 1,
+   Suffix = "studs",
+   CurrentValue = 1000,
+   Flag = "YLimit",
+   Callback = function(Value)
+        yLimit = Value
+   end
+})
+
+MainTab:CreateSlider({
+   Name = "⏱ TELEPORT RATE",
+   Range = {0.1, 1},
+   Increment = 0.01,
+   Suffix = "seconds",
+   CurrentValue = 0.39,
+   Flag = "TeleportRate",
+   Callback = function(Value)
+        teleportRate = Value
+        Rayfield:Notify({
+            Title = "SYSTEM UPDATE",
+            Content = "Teleport delay: "..Value.." seconds",
+            Duration = 2,
+            Image = "clock"
+        })
+   end
+})
+
+-- ========== RALLY TAB ==========
+RallyTab:CreateSection("Auto Rally System")
+
+local KeyInput = RallyTab:CreateInput({
+    Name = "Enter Your Key",
+    PlaceholderText = "Paste your key here (e.g., j7hOqD7zSh+vs35knoAfOg)",
+    RemoveTextAfterFocusLost = false,
+    Flag = "PlayerKey",
+    Callback = function(Text)
+        playerKey = Text
+        print("🔑 Key set")
+    end
+})
+
+local RallyInterval = RallyTab:CreateSlider({
+    Name = "Rally Interval (minutes)",
+    Range = {1, 60},
+    Increment = 1,
+    CurrentValue = 9,
+    Flag = "RallyInterval"
+})
+
+local RallyToggle = RallyTab:CreateToggle({
+    Name = "Auto Rally",
+    CurrentValue = false,
+    Flag = "RallyToggle",
+    Callback = function(Value)
+        if Value then
+            StartAutoRally(RallyInterval.CurrentValue)
+        else
+            StopAutoRally()
+        end
+    end
+})
+
+RallyTab:CreateButton({
+    Name = "Run Rally Sequence Now",
+    Callback = function()
+        RunRallySequence()
+    end
+})
+
+RallyTab:CreateButton({
+    Name = "Test Current Key",
+    Callback = function()
+        if playerKey ~= "" then
+            print("🔑 Current key: " .. playerKey)
+            Rayfield:Notify({
+                Title = "KEY INFO",
+                Content = "Key length: " .. #playerKey .. " characters",
+                Duration = 3,
+                Image = "key"
+            })
+        else
+            print("⚠️ No key entered")
+        end
+    end
+})
+
+-- ========== VISUAL TAB ==========
+VisualTab:CreateButton({
+   Name = "🟩 SPAWN BASEPLATE",
+   Callback = function()
+        if baseplate then baseplate:Destroy() end
+        baseplate = Instance.new("Part", workspace)
+        baseplate.Size = Vector3.new(2000, 5, 2000)
+        baseplate.Position = character.HumanoidRootPart.Position + Vector3.new(0, 50, 0)
+        baseplate.Anchored = true
+        baseplate.Color = Color3.fromRGB(0, 200, 100)
+        baseplate.Material = Enum.Material.Neon
+        baseplate.Name = "OwnerBaseplate"
+        baseplate.Transparency = 0.3
+
+        coroutine.wrap(function()
+            while baseplate and baseplate.Parent do
+                baseplate.Position = character.HumanoidRootPart.Position + Vector3.new(0, 50, 0)
+                task.wait(0.1)
+            end
+        end)()
+
+        Rayfield:Notify({
+            Title = "VISUAL SYSTEM",
+            Content = "Baseplate spawned 50 studs above",
+            Duration = 3,
+            Image = "box"
+        })
+   end
+})
+
+VisualTab:CreateSection("Anti-Lag System")
+
+VisualTab:CreateButton({
+    Name = "🚀 ENABLE ANTI-LAG",
+    Callback = function()
+        optimizeGame()
+        Rayfield:Notify({
+            Title = "ANTI-LAG ACTIVE",
+            Content = "Performance optimizations applied",
+            Duration = 3,
+            Image = "activity"
+        })
+    end
+})
+
+VisualTab:CreateButton({
+    Name = "🛑 DISABLE ANTI-LAG",
+    Callback = function()
+        deactivateLag()
+        Rayfield:Notify({
+            Title = "ANTI-LAG DISABLED",
+            Content = "Settings reverted to default",
+            Duration = 3,
+            Image = "power"
+        })
+    end
+})
+
+-- ========== BATTLE TAB ==========
+BattleTab:CreateSection("Auto-Battle Settings")
+
+BattleTab:CreateToggle({
+    Name = "⚔️ AUTO-BATTLE SYSTEM",
+    CurrentValue = AutoBattleEnabled,
+    Flag = "AutoBattle",
+    Callback = function(Value)
+        AutoBattleEnabled = Value
+        Rayfield:Notify({
+            Title = "BATTLE SYSTEM",
+            Content = Value and "Auto-battle enabled" or "Auto-battle disabled",
+            Duration = 2,
+            Image = "swords"
+        })
+    end
+})
+
+BattleTab:CreateToggle({
+    Name = "🌿 AUTO-SPAWN WILD BATTLES",
+    CurrentValue = false,
+    Flag = "WildBattle",
+    Callback = function(Value)
+        WildBattleToggle = Value
+        if Value then
+            if not Main then
+                for _,v in pairs(getgc(true)) do
+                    if typeof(v) == "table" and rawget(v, "DataManager") then
+                        Main = v
+                        break
+                    end
+                end
+            end
+            
+            if Main then
+                Rayfield:Notify({
+                    Title = "BATTLE SPAWNER",
+                    Content = "Wild battle spawner activated",
+                    Duration = 3,
+                    Image = "swords"
+                })
+            else
+                Rayfield:Notify({
+                    Title = "ERROR",
+                    Content = "Could not find game data table",
+                    Duration = 5,
+                    Image = "alert-triangle"
+                })
+                WildBattleToggle = false
+            end
+        else
+            Rayfield:Notify({
+                Title = "BATTLE SPAWNER",
+                Content = "Wild battle spawner deactivated",
+                Duration = 3,
+                Image = "circle-slash"
+            })
+        end
+    end
+})
+
+BattleTab:CreateToggle({
+    Name = "⏩ BATTLE FAST-FORWARD",
+    CurrentValue = false,
+    Flag = "FastForward",
+    Callback = function(Value)
+        FastForwardToggle = Value
+        if Value then
+            if not Main then
+                for _,v in pairs(getgc(true)) do
+                    if typeof(v) == "table" and rawget(v, "DataManager") then
+                        Main = v
+                        break
+                    end
+                end
+            end
+            
+            if Main then
+                Rayfield:Notify({
+                    Title = "BATTLE SPEED",
+                    Content = "Battle fast-forward activated",
+                    Duration = 3,
+                    Image = "fast-forward"
+                })
+            else
+                Rayfield:Notify({
+                    Title = "ERROR",
+                    Content = "Could not find game data table",
+                    Duration = 5,
+                    Image = "alert-triangle"
+                })
+                FastForwardToggle = false
+            end
+        else
+            Rayfield:Notify({
+                Title = "BATTLE SPEED",
+                Content = "Battle fast-forward deactivated",
+                Duration = 3,
+                Image = "clock"
+            })
+        end
+    end
+})
+
+-- ========== MAIN HUNTING LOOP ==========
+task.spawn(function()
+    while task.wait() do
+        if TeleportToggle and TeleportToggle.CurrentValue and not isInBattle() then
+            local eggs = getEggs()
+            for _, egg in ipairs(eggs) do
+                if not TeleportToggle.CurrentValue or isInBattle() then 
+                    if isInBattle() then
+                        Rayfield:Notify({
+                            Title = "COMBAT DETECTED",
+                            Content = "Teleportation paused",
+                            Duration = 3,
+                            Image = "swords"
+                        })
+                    end
+                    break 
+                end
+                if egg and egg.Parent then
+                    humanoid.RootPart.CFrame = CFrame.new(egg.Position)
+                    task.wait(teleportRate)
+                end
+            end
+        end
+    end
+end)
+
+-- ========== BATTLE LOOP ==========
+task.spawn(function()
+    while task.wait() do
+        if AutoBattleEnabled then
+            local BattleGui = PlayerGui:FindFirstChild("BattleGui", true)
+            if BattleGui then
+                local clickMove3 = BattleGui:FindFirstChild("Move3", true) and BattleGui:FindFirstChild("Move3", true).Button
+                
+                local clickFight, restFight
+                for _, v in ipairs(BattleGui:GetChildren()) do
+                    if v:IsA("ImageLabel") then
+                        if v.ImageColor3 == Color3.fromRGB(218, 83, 255) then
+                            restFight = v:FindFirstChild("Button")
+                        elseif v.ImageColor3 == Color3.fromRGB(255, 102, 102) then
+                            clickFight = v:FindFirstChild("Button")
+                        end
+                    end
+                end
+
+                if clickFight and clickFight.Parent.Visible then
+                    local pos = clickFight.AbsolutePosition + Vector2.new(clickFight.AbsoluteSize.X/2, clickFight.AbsoluteSize.Y/2)
+                    mousemoveabs(pos.X, pos.Y)
+                    mouse1click()
+                    task.wait(1)
+                end
+
+                if clickMove3 and clickMove3.Parent.Visible then
+                    local pos = clickMove3.AbsolutePosition + Vector2.new(clickMove3.AbsoluteSize.X/2, clickMove3.AbsoluteSize.Y/2)
+                    mousemoveabs(pos.X, pos.Y)
+                    mouse1click()
+                    task.wait(0.3)
+                elseif restFight and restFight.Parent.Visible then
+                    local pos = restFight.AbsolutePosition + Vector2.new(restFight.AbsoluteSize.X/2, restFight.AbsoluteSize.Y/2)
+                    mousemoveabs(pos.X, pos.Y)
+                    mouse1click()
+                    task.wait(0.3)
+                end
+            end
+        end
+    end
+end)
+
+-- ========== WILD BATTLE SPAWNER LOOP ==========
+task.spawn(function()
+    while task.wait(1) do
+        if WildBattleToggle and Main and Main.DataManager.currentChunk.regionData.Grass then
+            if Main.Battle.currentBattle then
+                Main.Battle.currentBattle.BattleEnded:Fire()
+                Main.Battle.currentBattle = nil
+                task.wait(0.5)
+            end
+            Main.Battle.doWildBattle(Main.Battle, Main.DataManager.currentChunk.regionData.Grass, {})
+        end
+    end
+end)
+
+-- ========== BATTLE FAST-FORWARD LOOP ==========
+task.spawn(function()
+    while task.wait() do
+        if FastForwardToggle and Main then
+            pcall(function()
+                if Main.Battle.currentBattle then
+                    Main.Battle.currentBattle.fastForward = true
+                end
+            end)
+        end
+    end
+end)
+
+-- Initialize
+Rayfield:LoadConfiguration()
+
+-- Load saved key
+task.wait(1)
+playerKey = KeyInput.CurrentValue or ""
+if playerKey ~= "" then
+    print("💾 Loaded saved key")
+end
+
+-- Welcome Notification
+task.wait(1)
+Rayfield:Notify({
+   Title = "OWNER SYSTEM ONLINE",
+   Content = "Premium controls activated\nAuto Rally + Egg Hunter",
+   Duration = 6,
+   Image = "shield-check"
+})    
     print("✅ Scan complete!")
 end
 
