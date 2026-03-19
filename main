@@ -1,441 +1,258 @@
--- Owner's Edition - Premium Egg Hunter
-
+-- Load the Rayfield Library
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
+-- Create the main window with Bloom theme
 local Window = Rayfield:CreateWindow({
-   Name = "OWNER CONTROL PANEL",
-   LoadingTitle = "Premium Egg Hunter",
-   LoadingSubtitle = "Owner's Edition",
-   ConfigurationSaving = {
-      Enabled = true,
-      FolderName = "OwnerConfig",
-      FileName = "Settings"
-   }
+    Name = "Koontang is fat",
+    LoadingTitle = "Loading Koontang is fat...",
+    LoadingSubtitle = "ID Grabber Edition",
+    Theme = "Bloom",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "KoontangIsFatConfig",
+        FileName = "Settings"
+    },
+    Discord = {
+        Enabled = false,
+        Invite = "noinvitelink",
+        RememberJoins = true
+    },
+    KeySystem = false
 })
 
--- Core Variables
-local player = game:GetService("Players").LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid")
-local PlayerGui = player:WaitForChild("PlayerGui")
-local musicId = 5410086218
-local musicSound
-local yLimit = 1000
-local teleportRate = 0.39
-local baseplate = nil
-local AutoBattleEnabled = true
-local Main = nil
-local WildBattleToggle = false
-local FastForwardToggle = false
+-- Create main tab
+local Tab = Window:CreateTab("Main", 4483362458)
+local IDTab = Window:CreateTab("ID Grabber", 4483362458) -- New tab for ID grabbing
 
--- Clean up existing sounds
-for _, sound in pairs(workspace:GetDescendants()) do
-    if sound:IsA("Sound") then sound:Destroy() end
-end
+-- Variables
+local isAutoRallyEnabled = false
+local loopConnection = nil
+local Event = game:GetService("ReplicatedStorage").Remote.REQ
+local playerKey = ""
 
--- Music System
-local function playMusic()
-    if musicSound then musicSound:Stop() end
-    musicSound = Instance.new("Sound")
-    musicSound.Parent = workspace
-    musicSound.SoundId = "rbxassetid://"..musicId
-    musicSound.Looped = true
-    musicSound.Volume = 0.5
-    musicSound:Play()
-end
-
--- Anti-lag system
-local function optimizeGame()
-    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-    game.Lighting.GlobalShadows = false
-    for _,v in pairs(game.Workspace:GetDescendants()) do
-        if v:IsA("ParticleEmitter") or v:IsA("Trail") then
-            v.Enabled = false
-        elseif v:IsA("BasePart") and v.Material == Enum.Material.Grass then
-            v.Material = Enum.Material.SmoothPlastic
-        end
-    end
-end
-
-local function deactivateLag()
-    settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
-    game.Lighting.GlobalShadows = true
-    for _,v in pairs(game.Workspace:GetDescendants()) do
-        if v:IsA("ParticleEmitter") or v:IsA("Trail") then
-            v.Enabled = true
-        end
-    end
-end
-
--- Battle Detection
-local function isInBattle()
-    return PlayerGui:FindFirstChild("BattleGui", true) ~= nil
-end
-
--- Tabs
-local MainTab = Window:CreateTab("Main Controls", "settings")
-local VisualTab = Window:CreateTab("Visual", "eye")
-local BattleTab = Window:CreateTab("Battle System", "swords")
-
--- Music Controls
-MainTab:CreateSection("Music System")
-
-MainTab:CreateButton({
-   Name = "▶️ PLAY MUSIC",
-   Callback = function()
-        playMusic()
-        Rayfield:Notify({
-            Title = "MUSIC STARTED",
-            Content = "Now playing track ID: "..musicId,
-            Duration = 3,
-            Image = "music"
-        })
-   end
-})
-
-MainTab:CreateButton({
-   Name = "⏹ STOP MUSIC",
-   Callback = function()
-        if musicSound then 
-            musicSound:Stop()
-            Rayfield:Notify({
-                Title = "MUSIC STOPPED",
-                Content = "Audio playback disabled",
-                Duration = 2,
-                Image = "volume-x"
-            })
-        end
-   end
-})
-
--- Hunting Controls
-MainTab:CreateSection("Hunting System")
-
-local TeleportToggle = MainTab:CreateToggle({
-   Name = "⚡ AUTO-TELEPORT",
-   CurrentValue = false,
-   Callback = function(Value)
-        if Value then 
-            playMusic()
-            Rayfield:Notify({
-                Title = "HUNTING MODE",
-                Content = "Teleport system activated",
-                Duration = 3,
-                Image = "target"
-            })
-        else
-            Rayfield:Notify({
-                Title = "HUNTING MODE",
-                Content = "Teleport system deactivated",
-                Duration = 3,
-                Image = "circle-slash"
-            })
-        end
-   end
-})
-
-MainTab:CreateSlider({
-   Name = "📏 Y-AXIS LIMIT",
-   Range = {1, 5000},
-   Increment = 1,
-   Suffix = "studs",
-   CurrentValue = 1000,
-   Callback = function(Value)
-        yLimit = Value
-   end
-})
-
-MainTab:CreateSlider({
-   Name = "⏱ TELEPORT RATE",
-   Range = {0.1, 1},
-   Increment = 0.01,
-   Suffix = "seconds",
-   CurrentValue = 0.39,
-   Callback = function(Value)
-        teleportRate = Value
-        Rayfield:Notify({
-            Title = "SYSTEM UPDATE",
-            Content = "Teleport delay: "..Value.." seconds",
-            Duration = 2,
-            Image = "clock"
-        })
-   end
-})
-
--- Battle System Controls
-BattleTab:CreateSection("Auto-Battle Settings")
-
-BattleTab:CreateToggle({
-    Name = "⚔️ AUTO-BATTLE SYSTEM",
-    CurrentValue = AutoBattleEnabled,
-    Callback = function(Value)
-        AutoBattleEnabled = Value
-        Rayfield:Notify({
-            Title = "BATTLE SYSTEM",
-            Content = Value and "Auto-battle enabled" or "Auto-battle disabled",
-            Duration = 2,
-            Image = "swords"
-        })
-    end
-})
-
-BattleTab:CreateToggle({
-    Name = "🌿 AUTO-SPAWN WILD BATTLES",
-    CurrentValue = false,
-    Callback = function(Value)
-        WildBattleToggle = Value
-        if Value then
-            if not Main then
-                for _,v in pairs(getgc(true)) do
-                    if typeof(v) == "table" and rawget(v, "DataManager") then
-                        Main = v
-                        break
-                    end
-                end
+-- ========== ID GRABBER SECTION ==========
+local function SetupIDGrabber()
+    -- Hook for REQ (your original event)
+    local EventREQ = game:GetService("ReplicatedStorage").Remote.REQ
+    local mtHook; mtHook = hookmetamethod(game, "__namecall", function(...)
+        local self = ...
+        
+        if rawequal(self, EventREQ) and getnamecallmethod() == "InvokeServer" then
+            local Args = table.pack(...)
+            local Result = table.pack(mtHook(self, table.unpack(Args, 1, Args.n)))
+            
+            -- Print the intercepted arguments
+            print("=== INTERCEPTED REQ ===")
+            print("Method: InvokeServer")
+            for i = 1, Args.n do
+                print("Arg " .. i .. ":", Args[i])
+            end
+            print("=======================")
+            
+            -- Auto-fill the key input if we detect a pattern
+            if type(Args[1]) == "string" and #Args[1] > 10 then
+                playerKey = Args[1]
+                KeyInput:Set(Args[1])
+                print("✅ Key auto-filled: " .. Args[1])
             end
             
-            if Main then
-                Rayfield:Notify({
-                    Title = "BATTLE SPAWNER",
-                    Content = "Wild battle spawner activated",
-                    Duration = 3,
-                    Image = "swords"
-                })
-            else
-                Rayfield:Notify({
-                    Title = "ERROR",
-                    Content = "Could not find game data table",
-                    Duration = 5,
-                    Image = "alert-triangle"
-                })
-                WildBattleToggle = false
-            end
-        else
-            Rayfield:Notify({
-                Title = "BATTLE SPAWNER",
-                Content = "Wild battle spawner deactivated",
-                Duration = 3,
-                Image = "circle-slash"
-            })
+            return table.unpack(Result, 1, Result.n)
         end
-    end
-})
-
-BattleTab:CreateToggle({
-    Name = "⏩ BATTLE FAST-FORWARD",
-    CurrentValue = false,
-    Callback = function(Value)
-        FastForwardToggle = Value
-        if Value then
-            if not Main then
-                for _,v in pairs(getgc(true)) do
-                    if typeof(v) == "table" and rawget(v, "DataManager") then
-                        Main = v
-                        break
-                    end
-                end
-            end
+        
+        return mtHook(...)
+    end)
+    
+    -- Hook for EVT (your new event)
+    local EventEVT = game:GetService("ReplicatedStorage").Remote.EVT
+    local mtHook2; mtHook2 = hookmetamethod(game, "__namecall", function(...)
+        local self = ...
+        
+        if rawequal(self, EventEVT) and getnamecallmethod() == "FireServer" then
+            local Args = table.pack(...)
+            local Result = table.pack(mtHook2(self, table.unpack(Args, 1, Args.n)))
             
-            if Main then
-                Rayfield:Notify({
-                    Title = "BATTLE SPEED",
-                    Content = "Battle fast-forward activated",
-                    Duration = 3,
-                    Image = "fast-forward"
-                })
-            else
-                Rayfield:Notify({
-                    Title = "ERROR",
-                    Content = "Could not find game data table",
-                    Duration = 5,
-                    Image = "alert-triangle"
-                })
-                FastForwardToggle = false
+            -- Print the intercepted arguments
+            print("=== INTERCEPTED EVT ===")
+            print("Method: FireServer")
+            for i = 1, Args.n do
+                print("Arg " .. i .. ":", Args[i])
             end
-        else
-            Rayfield:Notify({
-                Title = "BATTLE SPEED",
-                Content = "Battle fast-forward deactivated",
-                Duration = 3,
-                Image = "clock"
-            })
+            print("=======================")
+            
+            return table.unpack(Result, 1, Result.n)
         end
-    end
-})
-
--- Visual Baseplate Button
-VisualTab:CreateButton({
-   Name = "🟩 SPAWN BASEPLATE",
-   Callback = function()
-        if baseplate then baseplate:Destroy() end
-        baseplate = Instance.new("Part", workspace)
-        baseplate.Size = Vector3.new(2000, 5, 2000)
-        baseplate.Position = character.HumanoidRootPart.Position + Vector3.new(0, 50, 0)
-        baseplate.Anchored = true
-        baseplate.Color = Color3.fromRGB(0, 200, 100)
-        baseplate.Material = Enum.Material.Neon
-        baseplate.Name = "OwnerBaseplate"
-        baseplate.Transparency = 0.3
-
-        coroutine.wrap(function()
-            while baseplate and baseplate.Parent do
-                baseplate.Position = character.HumanoidRootPart.Position + Vector3.new(0, 50, 0)
-                task.wait(0.1)
+        
+        return mtHook2(...)
+    end)
+    
+    -- Also hook the FireServer method directly
+    local OldFireServer = hookfunction(EventEVT.FireServer, function(...)
+        local self = ...
+        if rawequal(self, EventEVT) then
+            local Args = table.pack(...)
+            local Result = table.pack(OldFireServer(table.unpack(Args, 1, Args.n)))
+            
+            print("=== DIRECT FIRESERVER HOOK ===")
+            for i = 1, Args.n do
+                print("Arg " .. i .. ":", Args[i])
             end
-        end)()
-
-        Rayfield:Notify({
-            Title = "VISUAL SYSTEM",
-            Content = "Baseplate spawned 50 studs above",
-            Duration = 3,
-            Image = "box"
-        })
-   end
-})
-
--- Anti-Lag Buttons
-VisualTab:CreateSection("Anti-Lag System")
-
-VisualTab:CreateButton({
-    Name = "🚀 ENABLE ANTI-LAG",
-    Callback = function()
-        optimizeGame()
-        Rayfield:Notify({
-            Title = "ANTI-LAG ACTIVE",
-            Content = "Performance optimizations applied",
-            Duration = 3,
-            Image = "activity"
-        })
-    end
-})
-
-VisualTab:CreateButton({
-    Name = "🛑 DISABLE ANTI-LAG",
-    Callback = function()
-        deactivateLag()
-        Rayfield:Notify({
-            Title = "ANTI-LAG DISABLED",
-            Content = "Settings reverted to default",
-            Duration = 3,
-            Image = "power"
-        })
-    end
-})
-
--- Egg Detection System
-local function getEggs()
-    local eggs = {}
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and obj.Name == "Egg" and obj.Position.Y <= yLimit then
-            table.insert(eggs, obj)
+            print("===============================")
+            
+            return table.unpack(Result, 1, Result.n)
         end
-    end
-    return eggs
+        return OldFireServer(self, ...)
+    end)
+    
+    print("✅ ID Grabber activated! Check console (F9) for intercepted data")
 end
 
--- Main Hunting Loop
-task.spawn(function()
-    while task.wait() do
-        if TeleportToggle.CurrentValue and not isInBattle() then
-            local eggs = getEggs()
-            for _, egg in ipairs(eggs) do
-                if not TeleportToggle.CurrentValue or isInBattle() then 
-                    if isInBattle() then
-                        Rayfield:Notify({
-                            Title = "COMBAT DETECTED",
-                            Content = "Teleportation paused",
-                            Duration = 3,
-                            Image = "swords"
-                        })
-                    end
-                    break 
-                end
-                if egg and egg.Parent then
-                    humanoid.RootPart.CFrame = CFrame.new(egg.Position)
-                    task.wait(teleportRate)
-                end
-            end
+-- Create ID Grabber UI
+local IDGrabberTab = Window:CreateTab("ID Grabber", 4483362458)
+
+local ActivateGrabber = IDGrabberTab:CreateButton({
+    Name = "Activate ID Grabber",
+    Callback = function()
+        SetupIDGrabber()
+    end
+})
+
+local Instructions = IDGrabberTab:CreateLabel("Instructions:")
+local Step1 = IDGrabberTab:CreateLabel("1. Click 'Activate ID Grabber'")
+local Step2 = IDGrabberTab:CreateLabel("2. Open console (F9)")
+local Step3 = IDGrabberTab:CreateLabel("3. Execute the rally manually in-game")
+local Step4 = IDGrabberTab:CreateLabel("4. Look for 'INTERCEPTED' messages")
+local Step5 = IDGrabberTab:CreateLabel("5. Copy the ID/Key that appears")
+
+local ClearConsole = IDGrabberTab:CreateButton({
+    Name = "Clear Console",
+    Callback = function()
+        for i = 1, 50 do
+            print(" ")
+        end
+        print("=== CONSOLE CLEARED ===")
+    end
+})
+
+-- ========== AUTO RALLY SECTION ==========
+-- Function to execute the rally
+local function ExecuteRally()
+    if playerKey == "" then
+        print("⚠️ Please enter your key first!")
+        return
+    end
+    
+    local success, err = pcall(function()
+        Event:InvokeServer(
+            playerKey,
+            "PDS",
+            "handleRallied",
+            {
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2
+            }
+        )
+    end)
+    
+    if success then
+        print("✅ Rally executed at: " .. os.date("%H:%M:%S"))
+    else
+        print("❌ Rally failed: " .. tostring(err))
+    end
+end
+
+-- Function to start the loop
+local function StartAutoRally(interval)
+    if playerKey == "" then
+        print("⚠️ Cannot start Auto Rally - Please enter your key first!")
+        AutoRallyToggle:Set(false)
+        return
+    end
+    
+    if loopConnection then
+        loopConnection:Disconnect()
+    end
+    
+    loopConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        ExecuteRally()
+        task.wait(interval)
+    end)
+end
+
+-- Function to stop the loop
+local function StopAutoRally()
+    if loopConnection then
+        loopConnection:Disconnect()
+        loopConnection = nil
+    end
+    isAutoRallyEnabled = false
+    print("⏹️ Auto Rally stopped")
+end
+
+-- Create input for player key
+local KeyInput = Tab:CreateInput({
+    Name = "Enter Your Key",
+    PlaceholderText = "Key will appear here when grabbed",
+    RemoveTextAfterFocusLost = false,
+    Flag = "PlayerKey",
+    Callback = function(Text)
+        playerKey = Text
+        print("🔑 Key saved: " .. Text)
+    end
+})
+
+-- Create interval slider
+local IntervalSlider = Tab:CreateSlider({
+    Name = "Interval (seconds)",
+    Range = {0.1, 10},
+    Increment = 0.1,
+    CurrentValue = 2,
+    Flag = "IntervalSetting",
+    Callback = function(Value)
+        if isAutoRallyEnabled then
+            StartAutoRally(Value)
         end
     end
-end)
+})
 
--- Battle Loop
-task.spawn(function()
-    while task.wait() do
-        if AutoBattleEnabled then
-            local BattleGui = PlayerGui:FindFirstChild("BattleGui", true)
-            if BattleGui then
-                local clickMove3 = BattleGui:FindFirstChild("Move3", true) and BattleGui:FindFirstChild("Move3", true).Button
-                
-                local clickFight, restFight
-                for _, v in ipairs(BattleGui:GetChildren()) do
-                    if v:IsA("ImageLabel") then
-                        if v.ImageColor3 == Color3.fromRGB(218, 83, 255) then
-                            restFight = v:FindFirstChild("Button")
-                        elseif v.ImageColor3 == Color3.fromRGB(255, 102, 102) then
-                            clickFight = v:FindFirstChild("Button")
-                        end
-                    end
-                end
-
-                if clickFight and clickFight.Parent.Visible then
-                    local pos = clickFight.AbsolutePosition + Vector2.new(clickFight.AbsoluteSize.X/2, clickFight.AbsoluteSize.Y/2)
-                    mousemoveabs(pos.X, pos.Y)
-                    mouse1click()
-                    task.wait(1)
-                end
-
-                if clickMove3 and clickMove3.Parent.Visible then
-                    local pos = clickMove3.AbsolutePosition + Vector2.new(clickMove3.AbsoluteSize.X/2, clickMove3.AbsoluteSize.Y/2)
-                    mousemoveabs(pos.X, pos.Y)
-                    mouse1click()
-                    task.wait(0.3)
-                elseif restFight and restFight.Parent.Visible then
-                    local pos = restFight.AbsolutePosition + Vector2.new(restFight.AbsoluteSize.X/2, restFight.AbsoluteSize.Y/2)
-                    mousemoveabs(pos.X, pos.Y)
-                    mouse1click()
-                    task.wait(0.3)
-                end
-            end
+-- Create toggle for auto rally
+local AutoRallyToggle = Tab:CreateToggle({
+    Name = "Auto Rally",
+    CurrentValue = false,
+    Flag = "AutoRallyToggle",
+    Callback = function(Value)
+        isAutoRallyEnabled = Value
+        if Value then
+            local interval = IntervalSlider.CurrentValue
+            StartAutoRally(interval)
+            print("▶️ Auto Rally started - Interval: " .. interval .. " seconds")
+        else
+            StopAutoRally()
         end
     end
-end)
+})
 
--- Wild Battle Spawner Loop
-task.spawn(function()
-    while task.wait(1) do
-        if WildBattleToggle and Main and Main.DataManager.currentChunk.regionData.Grass then
-            if Main.Battle.currentBattle then
-                Main.Battle.currentBattle.BattleEnded:Fire()
-                Main.Battle.currentBattle = nil
-                task.wait(0.5)
-            end
-            Main.Battle.doWildBattle(Main.Battle, Main.DataManager.currentChunk.regionData.Grass, {})
-        end
+-- Manual execute button
+local ManualButton = Tab:CreateButton({
+    Name = "Execute Once",
+    Callback = function()
+        ExecuteRally()
     end
-end)
+})
 
--- Battle Fast-Forward Loop
-task.spawn(function()
-    while task.wait() do
-        if FastForwardToggle and Main then
-            pcall(function()
-                if Main.Battle.currentBattle then
-                    Main.Battle.currentBattle.fastForward = true
-                end
-            end)
-        end
-    end
-end)
-
--- Initialize
+-- Load configuration
 Rayfield:LoadConfiguration()
 
--- Welcome Notification
+-- Load saved key
 task.wait(1)
-Rayfield:Notify({
-   Title = "OWNER SYSTEM ONLINE",
-   Content = "Premium controls activated\nTeleport rate adjustable",
-   Duration = 6,
-   Image = "shield-check"
-})
+playerKey = KeyInput.CurrentValue or ""
+if AutoRallyToggle.CurrentValue and playerKey ~= "" then
+    isAutoRallyEnabled = true
+    StartAutoRally(IntervalSlider.CurrentValue)
+end
