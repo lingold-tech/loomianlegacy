@@ -20,9 +20,9 @@ local Window = Rayfield:CreateWindow({
     KeySystem = false
 })
 
--- Create main tab
-local Tab = Window:CreateTab("Main", 4483362458)
-local IDTab = Window:CreateTab("ID Grabber", 4483362458) -- New tab for ID grabbing
+-- Create tabs
+local Tab = Window:CreateTab("Auto Rally", 4483362458)
+local IDGrabberTab = Window:CreateTab("ID Grabber", 4483362458)
 
 -- Variables
 local isAutoRallyEnabled = false
@@ -30,98 +30,118 @@ local loopConnection = nil
 local Event = game:GetService("ReplicatedStorage").Remote.REQ
 local playerKey = ""
 
--- ========== ID GRABBER SECTION ==========
-local function SetupIDGrabber()
-    -- Hook for REQ (your original event)
-    local EventREQ = game:GetService("ReplicatedStorage").Remote.REQ
-    local mtHook; mtHook = hookmetamethod(game, "__namecall", function(...)
-        local self = ...
+-- ========== SIMPLE ID GRABBER ==========
+local function SetupSimpleIDGrabber()
+    -- Clear console
+    for i = 1, 30 do print("") end
+    print("=== SIMPLE ID GRABBER ACTIVATED ===")
+    print("1. Go to the 'Auto Rally' tab")
+    print("2. Click 'Execute Once' manually")
+    print("3. Watch for the output below:")
+    print("====================================")
+    
+    -- Simple hook for REQ (InvokeServer)
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
         
-        if rawequal(self, EventREQ) and getnamecallmethod() == "InvokeServer" then
-            local Args = table.pack(...)
-            local Result = table.pack(mtHook(self, table.unpack(Args, 1, Args.n)))
-            
-            -- Print the intercepted arguments
-            print("=== INTERCEPTED REQ ===")
-            print("Method: InvokeServer")
-            for i = 1, Args.n do
-                print("Arg " .. i .. ":", Args[i])
+        -- Check if this is the REQ remote being called
+        if self == Event and method == "InvokeServer" then
+            print("🔥 INTERCEPTED INVOKESERVER! 🔥")
+            print("Arguments:")
+            for i, v in ipairs(args) do
+                print("  Arg " .. i .. ":", v)
+                -- If it looks like a key/ID (long string), save it
+                if type(v) == "string" and #v > 10 then
+                    playerKey = v
+                    print("✅ POTENTIAL KEY FOUND: " .. v)
+                    -- Try to auto-fill
+                    KeyInput:Set(v)
+                end
             end
-            print("=======================")
-            
-            -- Auto-fill the key input if we detect a pattern
-            if type(Args[1]) == "string" and #Args[1] > 10 then
-                playerKey = Args[1]
-                KeyInput:Set(Args[1])
-                print("✅ Key auto-filled: " .. Args[1])
-            end
-            
-            return table.unpack(Result, 1, Result.n)
+            print("========================")
         end
         
-        return mtHook(...)
+        -- Always call original
+        return oldNamecall(self, ...)
     end)
     
-    -- Hook for EVT (your new event)
-    local EventEVT = game:GetService("ReplicatedStorage").Remote.EVT
-    local mtHook2; mtHook2 = hookmetamethod(game, "__namecall", function(...)
-        local self = ...
-        
-        if rawequal(self, EventEVT) and getnamecallmethod() == "FireServer" then
-            local Args = table.pack(...)
-            local Result = table.pack(mtHook2(self, table.unpack(Args, 1, Args.n)))
+    -- Also try to hook the EVT remote
+    local EVT = game:GetService("ReplicatedStorage").Remote:FindFirstChild("EVT")
+    if EVT then
+        local oldFireServer
+        oldFireServer = hookfunction(EVT.FireServer, function(self, ...)
+            local args = {...}
             
-            -- Print the intercepted arguments
-            print("=== INTERCEPTED EVT ===")
-            print("Method: FireServer")
-            for i = 1, Args.n do
-                print("Arg " .. i .. ":", Args[i])
+            print("🔥 INTERCEPTED EVT:FIRESERVER! 🔥")
+            print("Arguments:")
+            for i, v in ipairs(args) do
+                print("  Arg " .. i .. ":", v)
+                if type(v) == "string" and #v > 10 then
+                    playerKey = v
+                    print("✅ POTENTIAL KEY FOUND: " .. v)
+                    KeyInput:Set(v)
+                end
             end
-            print("=======================")
+            print("========================")
             
-            return table.unpack(Result, 1, Result.n)
-        end
-        
-        return mtHook2(...)
-    end)
-    
-    -- Also hook the FireServer method directly
-    local OldFireServer = hookfunction(EventEVT.FireServer, function(...)
-        local self = ...
-        if rawequal(self, EventEVT) then
-            local Args = table.pack(...)
-            local Result = table.pack(OldFireServer(table.unpack(Args, 1, Args.n)))
-            
-            print("=== DIRECT FIRESERVER HOOK ===")
-            for i = 1, Args.n do
-                print("Arg " .. i .. ":", Args[i])
-            end
-            print("===============================")
-            
-            return table.unpack(Result, 1, Result.n)
-        end
-        return OldFireServer(self, ...)
-    end)
-    
-    print("✅ ID Grabber activated! Check console (F9) for intercepted data")
+            return oldFireServer(self, ...)
+        end)
+    end
 end
 
--- Create ID Grabber UI
-local IDGrabberTab = Window:CreateTab("ID Grabber", 4483362458)
+-- Even simpler: Just log ALL remote events
+local function LogAllRemotes()
+    print("🔍 Logging ALL remote calls...")
+    
+    -- Hook all remote events
+    local mt = getrawmetatable(game)
+    local old = mt.__namecall
+    setreadonly(mt, false)
+    
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
+        
+        -- Check if it's a remote call
+        if (method == "FireServer" or method == "InvokeServer") and self:IsA("RemoteEvent") or self:IsA("RemoteFunction") then
+            print("📡 Remote:", self.Name)
+            print("   Method:", method)
+            print("   Args:", unpack(args))
+            print("---")
+            
+            -- Look for long strings (possible keys)
+            for i, v in ipairs(args) do
+                if type(v) == "string" and #v > 15 then
+                    print("🎯 POSSIBLE KEY FOUND: " .. v)
+                    playerKey = v
+                    KeyInput:Set(v)
+                end
+            end
+        end
+        
+        return old(self, ...)
+    end)
+    
+    setreadonly(mt, true)
+    print("✅ Remote logger activated! Check console for all remote calls.")
+end
 
-local ActivateGrabber = IDGrabberTab:CreateButton({
-    Name = "Activate ID Grabber",
+-- ID Grabber UI
+local ActivateSimple = IDGrabberTab:CreateButton({
+    Name = "Activate Simple ID Grabber",
     Callback = function()
-        SetupIDGrabber()
+        SetupSimpleIDGrabber()
     end
 })
 
-local Instructions = IDGrabberTab:CreateLabel("Instructions:")
-local Step1 = IDGrabberTab:CreateLabel("1. Click 'Activate ID Grabber'")
-local Step2 = IDGrabberTab:CreateLabel("2. Open console (F9)")
-local Step3 = IDGrabberTab:CreateLabel("3. Execute the rally manually in-game")
-local Step4 = IDGrabberTab:CreateLabel("4. Look for 'INTERCEPTED' messages")
-local Step5 = IDGrabberTab:CreateLabel("5. Copy the ID/Key that appears")
+local ActivateLogger = IDGrabberTab:CreateButton({
+    Name = "Activate Remote Logger (Recommended)",
+    Callback = function()
+        LogAllRemotes()
+    end
+})
 
 local ClearConsole = IDGrabberTab:CreateButton({
     Name = "Clear Console",
@@ -133,8 +153,14 @@ local ClearConsole = IDGrabberTab:CreateButton({
     end
 })
 
+local Instructions = IDGrabberTab:CreateLabel("Instructions:")
+local Step1 = IDGrabberTab:CreateLabel("1. Click 'Activate Remote Logger'")
+local Step2 = IDGrabberTab:CreateLabel("2. Open console (F9)")
+local Step3 = IDGrabberTab:CreateLabel("3. Go to Auto Rally tab")
+local Step4 = IDGrabberTab:CreateLabel("4. Click 'Execute Once'")
+local Step5 = IDGrabberTab:CreateLabel("5. Look for '🎯 POSSIBLE KEY FOUND'")
+
 -- ========== AUTO RALLY SECTION ==========
--- Function to execute the rally
 local function ExecuteRally()
     if playerKey == "" then
         print("⚠️ Please enter your key first!")
@@ -167,7 +193,6 @@ local function ExecuteRally()
     end
 end
 
--- Function to start the loop
 local function StartAutoRally(interval)
     if playerKey == "" then
         print("⚠️ Cannot start Auto Rally - Please enter your key first!")
@@ -185,7 +210,6 @@ local function StartAutoRally(interval)
     end)
 end
 
--- Function to stop the loop
 local function StopAutoRally()
     if loopConnection then
         loopConnection:Disconnect()
@@ -195,7 +219,7 @@ local function StopAutoRally()
     print("⏹️ Auto Rally stopped")
 end
 
--- Create input for player key
+-- Auto Rally UI
 local KeyInput = Tab:CreateInput({
     Name = "Enter Your Key",
     PlaceholderText = "Key will appear here when grabbed",
@@ -207,7 +231,6 @@ local KeyInput = Tab:CreateInput({
     end
 })
 
--- Create interval slider
 local IntervalSlider = Tab:CreateSlider({
     Name = "Interval (seconds)",
     Range = {0.1, 10},
@@ -221,7 +244,6 @@ local IntervalSlider = Tab:CreateSlider({
     end
 })
 
--- Create toggle for auto rally
 local AutoRallyToggle = Tab:CreateToggle({
     Name = "Auto Rally",
     CurrentValue = false,
@@ -238,7 +260,6 @@ local AutoRallyToggle = Tab:CreateToggle({
     end
 })
 
--- Manual execute button
 local ManualButton = Tab:CreateButton({
     Name = "Execute Once",
     Callback = function()
