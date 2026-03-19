@@ -56,6 +56,11 @@ local isRallyRunning = false
 local REQEvent = game:GetService("ReplicatedStorage"):FindFirstChild("Remote") and game:GetService("ReplicatedStorage").Remote:FindFirstChild("REQ")
 local playerKey = ""
 
+-- Total Rallied Counter
+local totalRallied = 0
+local currentRallied = 0
+local ralliedLabel = nil
+
 -- Safety check for REQ event
 if not REQEvent then
     warn("REQ Remote not found! Auto Rally may not work.")
@@ -120,7 +125,7 @@ local function getEggs()
     return eggs
 end
 
--- ========== RALLY SEQUENCE ==========
+-- ========== RALLY SEQUENCE WITH COUNTER ==========
 local function RunRallySequence()
     if not REQEvent then
         print("❌ REQ Remote not found!")
@@ -135,13 +140,29 @@ local function RunRallySequence()
     print("🚀 Running rally sequence...")
     
     local success, err = pcall(function()
-        -- Step 1: ranchStatus
+        -- Step 1: ranchStatus (this returns the current rallied number)
         print("  Step 1: ranchStatus")
-        REQEvent:InvokeServer(
+        local ranchResult = REQEvent:InvokeServer(
             playerKey,
             "PDS",
             "ranchStatus"
         )
+        
+        -- Extract rallied number from ranchStatus result
+        if ranchResult and type(ranchResult) == "table" and ranchResult.rallied then
+            currentRallied = ranchResult.rallied
+            print("  Current rallied from ranchStatus: " .. currentRallied)
+        elseif ranchResult then
+            print("  ranchResult:", ranchResult)
+            -- Try to find any number in the result
+            for _, value in pairs(ranchResult) do
+                if type(value) == "number" then
+                    currentRallied = value
+                    print("  Found number in result: " .. value)
+                    break
+                end
+            end
+        end
         
         -- Step 2: getRallied
         print("  Step 2: getRallied")
@@ -169,6 +190,15 @@ local function RunRallySequence()
                 2
             }
         )
+        
+        -- After successful handleRallied, increment total
+        totalRallied = totalRallied + 1
+        print("  ✅ Total rallied: " .. totalRallied)
+        
+        -- Update UI label
+        if ralliedLabel then
+            ralliedLabel:Set("Total Rallied: " .. totalRallied .. " | Current: " .. currentRallied)
+        end
     end)
     
     if success then
@@ -304,6 +334,9 @@ local KeyInput = RallyTab:CreateInput({
     end
 })
 
+-- Rallied Counter Display
+ralliedLabel = RallyTab:CreateLabel("Total Rallied: 0 | Current: 0")
+
 local RallyInterval = RallyTab:CreateSlider({
     Name = "Rally Interval (minutes)",
     Range = {1, 60},
@@ -346,6 +379,23 @@ RallyTab:CreateButton({
         else
             print("⚠️ No key entered")
         end
+    end
+})
+
+RallyTab:CreateButton({
+    Name = "Reset Counter",
+    Callback = function()
+        totalRallied = 0
+        currentRallied = 0
+        if ralliedLabel then
+            ralliedLabel:Set("Total Rallied: 0 | Current: 0")
+        end
+        Rayfield:Notify({
+            Title = "COUNTER RESET",
+            Content = "Total rallied counter reset to 0",
+            Duration = 2,
+            Image = "refresh-cw"
+        })
     end
 })
 
