@@ -5,7 +5,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "Koontang is fat",
     LoadingTitle = "Loading Koontang is fat...",
-    LoadingSubtitle = "Fixed Hook Method",
+    LoadingSubtitle = "ULTRA SAFE METHOD",
     Theme = "Bloom",
     ConfigurationSaving = {
         Enabled = true,
@@ -26,82 +26,67 @@ local GrabberTab = Window:CreateTab("Key Grabber", 4483362458)
 
 -- Variables
 local isAutoRallyEnabled = false
-local loopConnection = nil
 local REQEvent = game:GetService("ReplicatedStorage").Remote.REQ
 local playerKey = ""
 local capturedKey = ""
 
--- ========== FIXED HOOK METHOD (WON'T BREAK RETURNS) ==========
-local function SetupFixedHook()
-    print("🔄 Initializing Fixed Hook Method...")
+-- ========== ULTRA SAFE METHOD - NO HOOKS ==========
+-- Instead of hooks, we'll just scan memory periodically
+local function ScanForKeys()
+    print("🔍 Scanning for keys in memory...")
     
-    -- Store original
-    local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        -- Get method and args
-        local method = getnamecallmethod()
-        local args = {...}
-        
-        -- Call original FIRST and store results
-        local results = {oldNamecall(self, ...)}
-        
-        -- Only do our logging AFTER the original call
-        if self == REQEvent and method == "InvokeServer" then
-            -- Use pcall to prevent any errors from affecting the game
-            pcall(function()
-                print("📡 REQ Intercepted (Post-Call)")
-                for i = 1, #args do
-                    print("  Arg" .. i .. ": " .. tostring(args[i]))
-                    if type(args[i]) == "string" and #args[i] > 10 then
-                        capturedKey = args[i]
-                        print("✅ KEY CAPTURED: " .. capturedKey)
-                        -- Update UI safely
-                        pcall(function()
-                            KeyInput:Set(capturedKey)
-                        end)
+    -- Check recent logs (if any)
+    local success, result = pcall(function()
+        -- Look for any strings in the game that might be keys
+        local function findStrings(obj, depth)
+            if depth > 3 then return end
+            
+            for _, child in pairs(obj:GetChildren()) do
+                -- Check string values
+                if child:IsA("StringValue") and #child.Value > 10 then
+                    print("Found potential key: " .. child.Value)
+                    if capturedKey == "" then
+                        capturedKey = child.Value
+                        KeyInput:Set(capturedKey)
                     end
                 end
-            end)
+                
+                -- Check object names
+                if #child.Name > 15 then
+                    print("Found long name: " .. child.Name)
+                end
+                
+                findStrings(child, depth + 1)
+            end
         end
         
-        -- Return original results exactly as they were
-        return unpack(results)
+        findStrings(game:GetService("ReplicatedStorage"), 0)
     end)
     
-    print("✅ Fixed Hook activated - Returns won't break!")
+    print("✅ Scan complete!")
 end
 
--- Even simpler: Just log to console without any UI updates
-local function SetupSafeLogger()
-    print("📝 Setting up safe logger...")
-    
-    local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        local args = {...}
-        local results = {oldNamecall(self, ...)}
-        
-        if self == REQEvent and method == "InvokeServer" then
-            -- Just print, no UI updates
-            print("🔍 REQ Called with args:", unpack(args))
-        end
-        
-        return unpack(results)
-    end)
-    
-    print("✅ Safe logger active")
+-- Even safer: Just let user paste the key manually
+local function ManualMode()
+    print("📝 Manual Mode - Just paste your key in the input box")
+    print("If you don't have the key, try:")
+    print("1. Looking in other scripts")
+    print("2. Asking other players")
+    print("3. Checking game Discord")
 end
 
--- UI for Key Grabber tab
-local FixedHookButton = GrabberTab:CreateButton({
-    Name = "Activate Fixed Hook (Safe)",
+-- UI for Key Grabber tab - NO HOOKS AT ALL
+local ScanButton = GrabberTab:CreateButton({
+    Name = "Scan for Keys (Safe)",
     Callback = function()
-        SetupFixedHook()
+        ScanForKeys()
     end
 })
 
-local SafeLoggerButton = GrabberTab:CreateButton({
-    Name = "Safe Logger Only",
+local ManualModeButton = GrabberTab:CreateButton({
+    Name = "Manual Entry Mode",
     Callback = function()
-        SetupSafeLogger()
+        ManualMode()
     end
 })
 
@@ -113,20 +98,22 @@ local ClearButton = GrabberTab:CreateButton({
 })
 
 local Instructions = GrabberTab:CreateLabel("INSTRUCTIONS:")
-local Step1 = GrabberTab:CreateLabel("1. Click 'Activate Fixed Hook'")
-local Step2 = GrabberTab:CreateLabel("2. Use rally feature normally")
-local Step3 = GrabberTab:CreateLabel("3. Key will be captured safely")
+local Step1 = GrabberTab:CreateLabel("OPTION 1: Click 'Scan for Keys'")
+local Step2 = GrabberTab:CreateLabel("OPTION 2: Type key manually")
+local Step3 = GrabberTab:CreateLabel("OPTION 3: Ask other players for key")
+local Warning = GrabberTab:CreateLabel("⚠️ NO HOOKS = NO CRASHES")
 
 -- ========== AUTO RALLY SECTION ==========
 local function ExecuteRally()
     local keyToUse = playerKey ~= "" and playerKey or capturedKey
     
     if keyToUse == "" then
-        print("⚠️ No key available! Use Key Grabber first.")
+        print("⚠️ Please enter your key first!")
         return
     end
     
-    -- Use pcall to prevent crashes
+    print("🚀 Executing rally...")
+    
     local success, err = pcall(function()
         REQEvent:InvokeServer(
             keyToUse,
@@ -147,7 +134,7 @@ local function StartAutoRally(interval)
     local keyToUse = playerKey ~= "" and playerKey or capturedKey
     
     if keyToUse == "" then
-        print("⚠️ No key available! Use Key Grabber first.")
+        print("⚠️ Please enter your key first!")
         AutoRallyToggle:Set(false)
         return
     end
@@ -170,12 +157,13 @@ end
 
 -- Auto Rally UI
 local KeyInput = Tab:CreateInput({
-    Name = "Your Key",
-    PlaceholderText = "Key will appear here",
+    Name = "Enter Your Key",
+    PlaceholderText = "Paste your key here...",
     RemoveTextAfterFocusLost = false,
     Flag = "PlayerKey",
     Callback = function(Text)
         playerKey = Text
+        print("🔑 Key set to: " .. Text)
     end
 })
 
@@ -214,5 +202,5 @@ Rayfield:LoadConfiguration()
 task.wait(1)
 playerKey = KeyInput.CurrentValue or ""
 if playerKey ~= "" then
-    print("💾 Loaded saved key")
+    print("💾 Loaded saved key: " .. playerKey)
 end
