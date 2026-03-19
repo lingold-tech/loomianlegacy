@@ -53,6 +53,8 @@ local FastForwardToggle = false
 
 -- Rally Variables
 local isRallyRunning = false
+local isMonitoringRanch = false
+local monitoringConnection = nil
 local REQEvent = game:GetService("ReplicatedStorage"):FindFirstChild("Remote") and game:GetService("ReplicatedStorage").Remote:FindFirstChild("REQ")
 local playerKey = ""
 
@@ -135,45 +137,50 @@ local function getEggs()
 end
 
 -- Function to recursively format any data type for display
-local function formatDataForDisplay(data, indent)
+local function formatDataForDisplay(data, indent, lines)
     indent = indent or 0
+    lines = lines or {}
     local indentStr = string.rep("  ", indent)
-    local result = {}
     
     if data == nil then
-        table.insert(result, indentStr .. "nil")
+        table.insert(lines, indentStr .. "nil")
     elseif type(data) == "table" then
-        table.insert(result, indentStr .. "{")
+        table.insert(lines, indentStr .. "{")
         for key, value in pairs(data) do
             local keyStr = tostring(key)
-            local valueLines = formatDataForDisplay(value, indent + 1)
-            for i, line in ipairs(valueLines) do
-                if i == 1 then
-                    table.insert(result, indentStr .. "  [" .. keyStr .. "] = " .. line:sub(indentStr:len() + 3))
-                else
-                    table.insert(result, line)
+            -- Start the line with the key
+            local lineStart = indentStr .. "  [" .. keyStr .. "] = "
+            -- Format the value
+            local valueLines = {}
+            formatDataForDisplay(value, indent + 1, valueLines)
+            -- Add the first line with the key
+            if #valueLines > 0 then
+                table.insert(lines, lineStart .. valueLines[1]:sub(indentStr:len() + 3))
+                -- Add remaining lines without the key
+                for i = 2, #valueLines do
+                    table.insert(lines, valueLines[i])
                 end
             end
         end
-        table.insert(result, indentStr .. "}")
+        table.insert(lines, indentStr .. "}")
     elseif type(data) == "string" then
-        table.insert(result, indentStr .. '"' .. data .. '"')
+        table.insert(lines, indentStr .. '"' .. data .. '"')
     elseif type(data) == "number" then
-        table.insert(result, indentStr .. data)
+        table.insert(lines, indentStr .. data)
     elseif type(data) == "boolean" then
-        table.insert(result, indentStr .. tostring(data))
+        table.insert(lines, indentStr .. tostring(data))
     else
-        table.insert(result, indentStr .. tostring(data))
+        table.insert(lines, indentStr .. tostring(data))
     end
     
-    return result
+    return lines
 end
 
 -- Function to update rally data display with ALL data
 local function updateRallyDataDisplay()
     if not rallyDataLabels then return end
     
-    -- Clear existing labels
+    -- Clear ALL existing labels
     for i, label in ipairs(rallyDataLabels) do
         if label then
             label:Set("")
@@ -184,33 +191,40 @@ local function updateRallyDataDisplay()
         -- Format ALL data recursively
         local formattedLines = formatDataForDisplay(rallyData)
         
-        -- Update labels with formatted data
+        -- Create or update labels for EVERY line
         for i, line in ipairs(formattedLines) do
             if rallyDataLabels[i] then
+                -- Update existing label
                 rallyDataLabels[i]:Set(line)
-            elseif i <= 30 then -- Limit to 30 lines max to prevent lag
+            else
+                -- Create new label
                 rallyDataLabels[i] = RallyDataTab:CreateLabel(line)
             end
         end
         
-        -- Show count of items
-        local itemCount = 0
+        -- Count total items for stats
+        local totalItems = 0
+        local totalKeys = 0
         local function countItems(tbl)
             if type(tbl) == "table" then
-                for _, v in pairs(tbl) do
-                    itemCount = itemCount + 1
+                for k, v in pairs(tbl) do
+                    totalKeys = totalKeys + 1
                     if type(v) == "table" then
                         countItems(v)
+                    else
+                        totalItems = totalItems + 1
                     end
                 end
             end
         end
         countItems(rallyData)
         
-        -- Update stats label if it exists
+        -- Update stats label
         if rallyDataStats then
-            rallyDataStats:Set("📊 Total items: " .. itemCount .. " | Last updated: " .. os.date("%H:%M:%S"))
+            rallyDataStats:Set("📊 Total lines: " .. #formattedLines .. " | Keys: " .. totalKeys .. " | Values: " .. totalItems .. " | Updated: " .. os.date("%H:%M:%S"))
         end
+        
+        print("✅ Displayed " .. #formattedLines .. " lines of rally data")
     else
         -- Show no data message
         if rallyDataLabels[1] then
@@ -222,121 +236,117 @@ local function updateRallyDataDisplay()
     end
 end
 
--- ========== RALLY SEQUENCE WITH TARGET CHECK ==========
-local function RunRallySequence()
-    if not REQEvent then
-        print("❌ REQ Remote not found!")
-        return false
+-- Function to check ranchStatus continuously
+local function StartRanchMonitoring()
+    if isMonitoringRanch then
+        print("⚠️ Ranch monitoring already active!")
+        return
     end
     
     if playerKey == "" then
         print("⚠️ Please enter your key first!")
-        return false
+        return
     end
     
-    print("🚀 Running rally sequence...")
+    isMonitoringRanch = true
+    print("🔄 Started continuous ranch monitoring...")
     
-    local success, err = pcall(function()
-        -- Step 1: ranchStatus (this returns the current rallied number)
-        print("  Step 1: ranchStatus")
-        local ranchResult = REQEvent:InvokeServer(
-            playerKey,
-            "PDS",
-            "ranchStatus"
-        )
-        
-        -- Extract rallied number from ranchStatus result
-        local newCurrentRallied = 0
-        if ranchResult and type(ranchResult) == "table" and ranchResult.rallied then
-            newCurrentRallied = ranchResult.rallied
-            print("  Current rallied from ranchStatus: " .. newCurrentRallied)
-        elseif ranchResult then
-            print("  ranchResult:", ranchResult)
-            -- Try to find any number in the result
-            for _, value in pairs(ranchResult) do
-                if type(value) == "number" then
-                    newCurrentRallied = value
-                    print("  Found number in result: " .. value)
-                    break
+    -- Run monitoring in a separate thread
+    task.spawn(function()
+        while isMonitoringRanch do
+            pcall(function()
+                -- Call ranchStatus
+                local ranchResult = REQEvent:InvokeServer(
+                    playerKey,
+                    "PDS",
+                    "ranchStatus"
+                )
+                
+                -- Extract rallied number
+                if ranchResult and type(ranchResult) == "table" and ranchResult.rallied then
+                    currentRallied = ranchResult.rallied
+                elseif ranchResult then
+                    for _, value in pairs(ranchResult) do
+                        if type(value) == "number" then
+                            currentRallied = value
+                            break
+                        end
+                    end
                 end
-            end
-        end
-        
-        currentRallied = newCurrentRallied
-        
-        -- Check if current rallied meets target condition
-        local shouldClaim = false
-        
-        if targetMode == "Equals" then
-            shouldClaim = (currentRallied == targetRallied)
-            print("  Target check: " .. currentRallied .. " == " .. targetRallied .. " ? " .. tostring(shouldClaim))
-        else -- GreaterThan
-            shouldClaim = (currentRallied >= targetRallied)
-            print("  Target check: " .. currentRallied .. " >= " .. targetRallied .. " ? " .. tostring(shouldClaim))
-        end
-        
-        -- Step 2: getRallied (always run to get data)
-        print("  Step 2: getRallied")
-        local getRalliedResult = REQEvent:InvokeServer(
-            playerKey,
-            "PDS",
-            "getRallied"
-        )
-        
-        -- Store and display ALL getRallied data
-        if getRalliedResult then
-            rallyData = getRalliedResult
-            print("  ✅ getRallied data received")
-            updateRallyDataDisplay()
-        end
-        
-        if shouldClaim then
-            -- Step 3: handleRallied (the actual claim)
-            print("  Step 3: handleRallied")
-            REQEvent:InvokeServer(
-                playerKey,
-                "PDS",
-                "handleRallied",
-                {
-                    2,
-                    2,
-                    2,
-                    2,
-                    2,
-                    2,
-                    2,
-                    2,
-                    2
-                }
-            )
+                
+                -- Update display without notification
+                if ralliedLabel then
+                    local targetDisplay = targetMode == "Equals" and "==" or "≥"
+                    ralliedLabel:Set("Total: " .. totalRallied .. " | Current: " .. currentRallied .. " | Target: " .. targetRallied .. " " .. targetDisplay)
+                end
+                
+                -- Check if target is met
+                local targetMet = false
+                if targetMode == "Equals" then
+                    targetMet = (currentRallied == targetRallied)
+                else -- GreaterThan
+                    targetMet = (currentRallied >= targetRallied)
+                end
+                
+                -- If target met, run the full sequence
+                if targetMet and not isInBattle() then
+                    print("🎯 Target reached! Running full rally sequence...")
+                    
+                    -- Run getRallied
+                    local getRalliedResult = REQEvent:InvokeServer(
+                        playerKey,
+                        "PDS",
+                        "getRallied"
+                    )
+                    
+                    -- Store data
+                    if getRalliedResult then
+                        rallyData = getRalliedResult
+                        updateRallyDataDisplay()
+                    end
+                    
+                    -- Run handleRallied
+                    REQEvent:InvokeServer(
+                        playerKey,
+                        "PDS",
+                        "handleRallied",
+                        {
+                            2,
+                            2,
+                            2,
+                            2,
+                            2,
+                            2,
+                            2,
+                            2,
+                            2
+                        }
+                    )
+                    
+                    -- Increment counter
+                    totalRallied = totalRallied + 1
+                    
+                    -- Single notification for the claim (optional - you can remove this if you want no notifications at all)
+                    Rayfield:Notify({
+                        Title = "RALLY CLAIMED",
+                        Content = "Successfully claimed at " .. currentRallied,
+                        Duration = 2,
+                        Image = "check-circle"
+                    })
+                    
+                    print("✅ Rally claimed at: " .. os.date("%H:%M:%S"))
+                end
+            end)
             
-            -- After successful handleRallied, increment total
-            totalRallied = totalRallied + 1
-            print("  ✅ Total rallied: " .. totalRallied)
-            Rayfield:Notify({
-                Title = "RALLY CLAIMED",
-                Content = "Rallied when count reached " .. currentRallied,
-                Duration = 3,
-                Image = "check-circle"
-            })
-        else
-            print("  ⏸️ Skipping claim - current rallied (" .. currentRallied .. ") does not meet target (" .. targetRallied .. " " .. targetMode .. ")")
-        end
-        
-        -- Update UI label
-        if ralliedLabel then
-            local targetDisplay = targetMode == "Equals" and "==" or "≥"
-            ralliedLabel:Set("Total: " .. totalRallied .. " | Current: " .. currentRallied .. " | Target: " .. targetRallied .. " " .. targetDisplay)
+            -- Wait before next check (adjustable - default 5 seconds)
+            task.wait(5)
         end
     end)
-    
-    if success then
-        print("✅ Rally sequence completed at: " .. os.date("%H:%M:%S"))
-        return true
-    else
-        print("❌ Sequence failed: " .. tostring(err))
-        return false
-    end
+end
+
+local function StopRanchMonitoring()
+    isMonitoringRanch = false
+    print("⏹️ Ranch monitoring stopped")
 end
 
 -- Function to only fetch getRallied data
@@ -365,23 +375,11 @@ local function FetchRallyData()
             print("✅ ALL rally data received")
             updateRallyDataDisplay()
             
-            -- Count items for notification
-            local itemCount = 0
-            local function countItems(tbl)
-                if type(tbl) == "table" then
-                    for _, v in pairs(tbl) do
-                        itemCount = itemCount + 1
-                        if type(v) == "table" then
-                            countItems(v)
-                        end
-                    end
-                end
-            end
-            countItems(rallyData)
+            local totalLines = #formatDataForDisplay(rallyData)
             
             Rayfield:Notify({
                 Title = "DATA FETCHED",
-                Content = "Loaded " .. itemCount .. " data items",
+                Content = "Loaded " .. totalLines .. " lines of data",
                 Duration = 3,
                 Image = "database"
             })
@@ -405,24 +403,6 @@ local function FetchRallyData()
             Image = "alert-triangle"
         })
     end
-end
-
-local function StartAutoRally(interval)
-    isRallyRunning = true
-    print("▶️ Auto Rally started - Running every " .. interval .. " minutes")
-    print("🎯 Target: " .. targetRallied .. " " .. targetMode)
-    
-    task.spawn(function()
-        while isRallyRunning do
-            RunRallySequence()
-            task.wait(interval * 60)
-        end
-    end)
-end
-
-local function StopAutoRally()
-    isRallyRunning = false
-    print("⏹️ Auto Rally stopped")
 end
 
 -- Create Tabs
@@ -533,7 +513,7 @@ local KeyInput = RallyTab:CreateInput({
     end
 })
 
--- Rallied Counter Display
+-- Rallied Counter Display (updates in real-time from monitoring)
 ralliedLabel = RallyTab:CreateLabel("Total: 0 | Current: 0 | Target: 9 ==")
 
 RallyTab:CreateSection("Target Settings")
@@ -579,33 +559,110 @@ local TargetModeDropdown = RallyTab:CreateDropdown({
     end
 })
 
-RallyTab:CreateSection("Rally Controls")
+RallyTab:CreateSection("Ranch Monitoring")
 
-local RallyInterval = RallyTab:CreateSlider({
-    Name = "Check Interval (minutes)",
-    Range = {1, 60},
+-- Monitoring speed slider
+local MonitorSpeedSlider = RallyTab:CreateSlider({
+    Name = "Check Interval (seconds)",
+    Range = {1, 30},
     Increment = 1,
-    CurrentValue = 9,
-    Flag = "RallyInterval"
+    CurrentValue = 5,
+    Suffix = "seconds",
+    Flag = "MonitorSpeed"
 })
 
-local RallyToggle = RallyTab:CreateToggle({
-    Name = "Auto Rally",
+-- Monitoring toggle
+local MonitorToggle = RallyTab:CreateToggle({
+    Name = "🏁 Continuous Ranch Monitoring",
     CurrentValue = false,
-    Flag = "RallyToggle",
+    Flag = "MonitorToggle",
     Callback = function(Value)
         if Value then
-            StartAutoRally(RallyInterval.CurrentValue)
+            -- Adjust monitoring speed based on slider
+            StartRanchMonitoring()
         else
-            StopAutoRally()
+            StopRanchMonitoring()
         end
     end
 })
 
+RallyTab:CreateSection("Manual Controls")
+
 RallyTab:CreateButton({
-    Name = "Check & Claim Now",
+    Name = "Check Ranch Status Now",
     Callback = function()
-        RunRallySequence()
+        if playerKey == "" then
+            print("⚠️ Please enter your key first!")
+            return
+        end
+        
+        pcall(function()
+            local ranchResult = REQEvent:InvokeServer(
+                playerKey,
+                "PDS",
+                "ranchStatus"
+            )
+            
+            if ranchResult and type(ranchResult) == "table" and ranchResult.rallied then
+                currentRallied = ranchResult.rallied
+                print("📊 Current rallied: " .. currentRallied)
+                if ralliedLabel then
+                    local targetDisplay = targetMode == "Equals" and "==" or "≥"
+                    ralliedLabel:Set("Total: " .. totalRallied .. " | Current: " .. currentRallied .. " | Target: " .. targetRallied .. " " .. targetDisplay)
+                end
+            end
+        end)
+    end
+})
+
+RallyTab:CreateButton({
+    Name = "Force Claim Now",
+    Callback = function()
+        if playerKey == "" then
+            print("⚠️ Please enter your key first!")
+            return
+        end
+        
+        pcall(function()
+            -- Run getRallied
+            local getRalliedResult = REQEvent:InvokeServer(
+                playerKey,
+                "PDS",
+                "getRallied"
+            )
+            
+            if getRalliedResult then
+                rallyData = getRalliedResult
+                updateRallyDataDisplay()
+            end
+            
+            -- Run handleRallied
+            REQEvent:InvokeServer(
+                playerKey,
+                "PDS",
+                "handleRallied",
+                {
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2,
+                    2
+                }
+            )
+            
+            totalRallied = totalRallied + 1
+            
+            Rayfield:Notify({
+                Title = "FORCE CLAIM",
+                Content = "Rally claimed manually",
+                Duration = 2,
+                Image = "check-circle"
+            })
+        end)
     end
 })
 
@@ -630,10 +687,9 @@ RallyTab:CreateButton({
     Name = "Reset Counter",
     Callback = function()
         totalRallied = 0
-        currentRallied = 0
         if ralliedLabel then
             local targetDisplay = targetMode == "Equals" and "==" or "≥"
-            ralliedLabel:Set("Total: 0 | Current: 0 | Target: " .. targetRallied .. " " .. targetDisplay)
+            ralliedLabel:Set("Total: 0 | Current: " .. currentRallied .. " | Target: " .. targetRallied .. " " .. targetDisplay)
         end
         Rayfield:Notify({
             Title = "COUNTER RESET",
@@ -679,13 +735,16 @@ RallyDataTab:CreateButton({
     end
 })
 
-RallyDataTab:CreateSection("Raw Data Output")
+RallyDataTab:CreateSection("Complete Raw Data Output")
 
--- Create initial empty labels for data display (will be filled dynamically)
+-- Create initial empty labels (will expand dynamically as needed)
 rallyDataLabels = {}
-for i = 1, 30 do
+for i = 1, 50 do
     rallyDataLabels[i] = RallyDataTab:CreateLabel("")
 end
+
+-- Add note about unlimited display
+RallyDataTab:CreateLabel("📝 This display has NO LINE LIMIT - all data will be shown")
 
 -- ========== VISUAL TAB ==========
 VisualTab:CreateButton({
