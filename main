@@ -240,9 +240,3 @@ local ShowKeyButton = Tab:CreateButton({
 -- Load configuration
 Rayfield:LoadConfiguration()
 
--- Load saved key
-task.wait(1)
-playerKey = KeyInput.CurrentValue or ""
-if playerKey ~= "" then
-    print("💾 Loaded saved key")
-end
