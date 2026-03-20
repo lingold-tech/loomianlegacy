@@ -557,13 +557,24 @@ BattleTab:CreateToggle({
     end
 })
 
--- ========== FIXED AUTO BATTLE LOOP ==========
+-- ========== FIXED AUTO BATTLE LOOP WITH PROPER CLICK POSITION ==========
 local function clickButton(button)
     if button and button.Parent and button.Parent.Visible then
-        local pos = button.AbsolutePosition + (button.AbsoluteSize / 2)
-        game:GetService("VirtualInputManager"):SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 0)
+        -- Get the exact center of the button
+        local absolutePos = button.AbsolutePosition
+        local absoluteSize = button.AbsoluteSize
+        local centerX = absolutePos.X + (absoluteSize.X / 2)
+        local centerY = absolutePos.Y + (absoluteSize.Y / 2)
+        
+        -- Use InputService for more accurate clicks
+        local inputService = game:GetService("UserInputService")
+        
+        -- Move mouse to center
+        inputService:MouseMove(centerX, centerY)
         task.wait(0.05)
-        game:GetService("VirtualInputManager"):SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 0)
+        
+        -- Click
+        inputService:MouseButton1Click()
         task.wait(0.1)
         return true
     end
@@ -576,7 +587,7 @@ task.spawn(function()
             if AutoBattleEnabled then
                 local BattleGui = PlayerGui:FindFirstChild("BattleGui", true)
                 if BattleGui then
-                    -- Find all buttons
+                    -- Find move buttons
                     local move1 = BattleGui:FindFirstChild("Move1", true)
                     local move2 = BattleGui:FindFirstChild("Move2", true)
                     local move3 = BattleGui:FindFirstChild("Move3", true)
@@ -596,13 +607,13 @@ task.spawn(function()
                         end
                     end
                     
-                    -- If fight button is visible, click it
+                    -- Click fight button first if visible
                     if fightBtn and fightBtn.Parent and fightBtn.Parent.Visible then
                         clickButton(fightBtn)
                         task.wait(0.5)
                     end
                     
-                    -- Check if moves are visible
+                    -- Then click moves in priority order
                     if move3 and move3.Button and move3.Button.Parent and move3.Button.Parent.Visible then
                         clickButton(move3.Button)
                         task.wait(0.3)
