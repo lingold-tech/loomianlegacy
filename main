@@ -554,7 +554,7 @@ BattleTab:CreateToggle({
     end
 })
 
--- ========== FIXED BATTLE LOOP WITH ADJUSTED MOUSE POSITION ==========
+-- ========== FIXED BATTLE LOOP WITH LARGER DELAY ==========
 task.spawn(function()
     while task.wait() do
         pcall(function()
@@ -575,31 +575,29 @@ task.spawn(function()
                     end
 
                     if clickFight and clickFight.Parent.Visible then
-                        -- Calculate center then add a small offset down (15 pixels)
+                        -- Calculate center then add offset down
                         local centerX = clickFight.AbsolutePosition.X + (clickFight.AbsoluteSize.X / 2)
-                        local centerY = clickFight.AbsolutePosition.Y + (clickFight.AbsoluteSize.Y / 2) + 15
+                        local centerY = clickFight.AbsolutePosition.Y + (clickFight.AbsoluteSize.Y / 2) + 10
                         mousemoveabs(centerX, centerY)
-                        task.wait(0.05)
+                        task.wait(0.3) -- Larger delay before click
                         mouse1click()
-                        task.wait(1)
+                        task.wait(1.5) -- Larger delay after click
                     end
 
                     if clickMove3 and clickMove3.Parent.Visible then
-                        -- Calculate center then add a small offset down (15 pixels)
                         local centerX = clickMove3.AbsolutePosition.X + (clickMove3.AbsoluteSize.X / 2)
-                        local centerY = clickMove3.AbsolutePosition.Y + (clickMove3.AbsoluteSize.Y / 2) + 15
+                        local centerY = clickMove3.AbsolutePosition.Y + (clickMove3.AbsoluteSize.Y / 2) + 10
                         mousemoveabs(centerX, centerY)
-                        task.wait(0.05)
+                        task.wait(0.3) -- Larger delay before click
                         mouse1click()
-                        task.wait(0.3)
+                        task.wait(0.5) -- Larger delay after click
                     elseif restFight and restFight.Parent.Visible then
-                        -- Calculate center then add a small offset down (15 pixels)
                         local centerX = restFight.AbsolutePosition.X + (restFight.AbsoluteSize.X / 2)
-                        local centerY = restFight.AbsolutePosition.Y + (restFight.AbsoluteSize.Y / 2) + 15
+                        local centerY = restFight.AbsolutePosition.Y + (restFight.AbsoluteSize.Y / 2) + 10
                         mousemoveabs(centerX, centerY)
-                        task.wait(0.05)
+                        task.wait(0.3) -- Larger delay before click
                         mouse1click()
-                        task.wait(0.3)
+                        task.wait(0.5) -- Larger delay after click
                     end
                 end
             end
