@@ -1,4 +1,4 @@
--- Combined Script: Auto Rally + Owner's Edition Features + Auto Battle
+-- Combined Script: Auto Rally + Owner's Edition Features
 local Rayfield
 
 -- Try multiple ways to load Rayfield
@@ -46,17 +46,15 @@ local musicSound
 local yLimit = 1000
 local teleportRate = 0.39
 local baseplate = nil
+local AutoBattleEnabled = true
+local Main = nil
 local WildBattleToggle = false
 local FastForwardToggle = false
 
 -- Rally Variables
 local isRallyRunning = false
-local rallyLoop = nil
 local REQEvent = game:GetService("ReplicatedStorage"):FindFirstChild("Remote") and game:GetService("ReplicatedStorage").Remote:FindFirstChild("REQ")
 local playerKey = ""
-
--- Auto Battle Settings
-_G.Move = "move 2"
 
 -- Safety check for REQ event
 if not REQEvent then
@@ -130,20 +128,11 @@ local function RunRallySequence()
     end
     
     if playerKey == "" then
-        print("⚠️ No key entered - skipping claim")
+        print("⚠️ Please enter your key first!")
         return false
     end
     
     print("🚀 Running rally sequence at: " .. os.date("%H:%M:%S"))
-    print("  🔑 Using key: " .. playerKey)
-    
-    -- Show prompt before claiming
-    Rayfield:Notify({
-        Title = "🎯 RALLY READY",
-        Content = "Preparing to claim rally...",
-        Duration = 2,
-        Image = "alert-circle"
-    })
     
     local success, err = pcall(function()
         -- Step 1: ranchStatus
@@ -154,9 +143,6 @@ local function RunRallySequence()
             "ranchStatus"
         )
         
-        -- Brief pause between steps
-        task.wait(0.5)
-        
         -- Step 2: getRallied
         print("  Step 2: getRallied")
         REQEvent:InvokeServer(
@@ -164,9 +150,6 @@ local function RunRallySequence()
             "PDS",
             "getRallied"
         )
-        
-        -- Brief pause between steps
-        task.wait(0.5)
         
         -- Step 3: handleRallied (the actual claim)
         print("  Step 3: handleRallied")
@@ -210,66 +193,20 @@ local function RunRallySequence()
 end
 
 local function StartAutoRally(interval)
-    if isRallyRunning then
-        StopAutoRally()
-    end
-    
-    if playerKey == "" then
-        print("❌ Cannot start Auto Rally - No key entered!")
-        Rayfield:Notify({
-            Title = "❌ KEY REQUIRED",
-            Content = "Please enter a key first",
-            Duration = 3,
-            Image = "alert-triangle"
-        })
-        RallyToggle:Set(false)
-        return
-    end
-    
     isRallyRunning = true
-    local intervalMinutes = interval or RallyInterval.CurrentValue
-    print("▶️ Auto Rally started - Running every " .. intervalMinutes .. " minute(s)")
+    print("▶️ Auto Rally started - Running every " .. interval .. " minutes")
     
-    Rayfield:Notify({
-        Title = "🔄 AUTO RALLY",
-        Content = "Started - Running every " .. intervalMinutes .. " minute(s)",
-        Duration = 3,
-        Image = "clock"
-    })
-    
-    -- Run immediately once
     task.spawn(function()
-        RunRallySequence()
-    end)
-    
-    -- Then run on interval
-    rallyLoop = task.spawn(function()
         while isRallyRunning do
-            for i = 1, intervalMinutes * 60 do
-                task.wait(1)
-                if not isRallyRunning then break end
-            end
-            
-            if isRallyRunning then
-                RunRallySequence()
-            end
+            RunRallySequence()
+            task.wait(interval * 60)
         end
     end)
 end
 
 local function StopAutoRally()
     isRallyRunning = false
-    if rallyLoop then
-        rallyLoop = nil
-    end
     print("⏹️ Auto Rally stopped")
-    
-    Rayfield:Notify({
-        Title = "⏹️ AUTO RALLY",
-        Content = "Auto Rally stopped",
-        Duration = 2,
-        Image = "square"
-    })
 end
 
 -- Create Tabs
@@ -369,8 +306,8 @@ MainTab:CreateSlider({
 RallyTab:CreateSection("Auto Rally System")
 
 local KeyInput = RallyTab:CreateInput({
-    Name = "Enter Your Key (REQUIRED)",
-    PlaceholderText = "You MUST enter a key for Auto Rally to work",
+    Name = "Enter Your Key",
+    PlaceholderText = "Paste your key here",
     RemoveTextAfterFocusLost = false,
     Flag = "PlayerKey",
     Callback = function(Text)
@@ -385,20 +322,12 @@ local KeyInput = RallyTab:CreateInput({
     end
 })
 
-RallyTab:CreateLabel("⚠️ Key is REQUIRED - Auto Rally won't start without it")
-
 local RallyInterval = RallyTab:CreateSlider({
     Name = "Rally Interval (minutes)",
     Range = {1, 9},
     Increment = 1,
     CurrentValue = 9,
-    Flag = "RallyInterval",
-    Callback = function(Value)
-        if isRallyRunning then
-            print("🔄 Interval changed to " .. Value .. " minute(s) - restarting...")
-            StartAutoRally(Value)
-        end
-    end
+    Flag = "RallyInterval"
 })
 
 local RallyToggle = RallyTab:CreateToggle({
@@ -407,6 +336,16 @@ local RallyToggle = RallyTab:CreateToggle({
     Flag = "RallyToggle",
     Callback = function(Value)
         if Value then
+            if playerKey == "" then
+                Rayfield:Notify({
+                    Title = "⚠️ NO KEY",
+                    Content = "Please enter a key first",
+                    Duration = 3,
+                    Image = "alert-circle"
+                })
+                RallyToggle:Set(false)
+                return
+            end
             StartAutoRally(RallyInterval.CurrentValue)
         else
             StopAutoRally()
@@ -419,10 +358,10 @@ RallyTab:CreateButton({
     Callback = function()
         if playerKey == "" then
             Rayfield:Notify({
-                Title = "❌ KEY REQUIRED",
+                Title = "⚠️ NO KEY",
                 Content = "Please enter a key first",
-                Duration = 3,
-                Image = "alert-triangle"
+                Duration = 2,
+                Image = "alert-circle"
             })
             return
         end
@@ -442,31 +381,16 @@ RallyTab:CreateButton({
                 Image = "key"
             })
         else
-            print("❌ No key entered - Auto Rally will not work")
+            print("⚠️ No key entered")
             Rayfield:Notify({
-                Title = "❌ NO KEY",
-                Content = "Please enter a key - REQUIRED",
-                Duration = 3,
-                Image = "alert-triangle"
+                Title = "NO KEY",
+                Content = "Please enter a key first",
+                Duration = 2,
+                Image = "alert-circle"
             })
         end
     end
 })
-
-local StatusLabel = RallyTab:CreateLabel("Status: Idle")
-
-task.spawn(function()
-    while true do
-        if isRallyRunning then
-            StatusLabel:Set("Status: Auto Rally Active (Interval: " .. RallyInterval.CurrentValue .. " min)")
-        elseif playerKey == "" then
-            StatusLabel:Set("Status: Waiting for Key (Required)")
-        else
-            StatusLabel:Set("Status: Idle")
-        end
-        task.wait(1)
-    end
-end)
 
 -- ========== VISUAL TAB ==========
 VisualTab:CreateButton({
@@ -529,30 +453,12 @@ VisualTab:CreateButton({
 -- ========== BATTLE TAB ==========
 BattleTab:CreateSection("Auto-Battle Settings")
 
--- Move selection dropdown
-local MoveDropdown = BattleTab:CreateDropdown({
-    Name = "Select Move",
-    Options = {"move 1", "move 2", "move 3", "move 4"},
-    CurrentOption = {"move 2"},
-    Flag = "SelectedMove",
-    Callback = function(Option)
-        _G.Move = Option
-        print("🔫 Move set to: " .. Option)
-        Rayfield:Notify({
-            Title = "MOVE SET",
-            Content = "Now using: " .. Option,
-            Duration = 2,
-            Image = "swords"
-        })
-    end
-})
-
--- Auto Battle toggle
-local AutoBattleToggle = BattleTab:CreateToggle({
+BattleTab:CreateToggle({
     Name = "⚔️ AUTO-BATTLE SYSTEM",
-    CurrentValue = true,
+    CurrentValue = AutoBattleEnabled,
     Flag = "AutoBattle",
     Callback = function(Value)
+        AutoBattleEnabled = Value
         Rayfield:Notify({
             Title = "BATTLE SYSTEM",
             Content = Value and "Auto-battle enabled" or "Auto-battle disabled",
@@ -562,59 +468,91 @@ local AutoBattleToggle = BattleTab:CreateToggle({
     end
 })
 
--- Wild Battle spawn toggle
 BattleTab:CreateToggle({
     Name = "🌿 AUTO-SPAWN WILD BATTLES",
     CurrentValue = false,
     Flag = "WildBattle",
     Callback = function(Value)
         WildBattleToggle = Value
-        Rayfield:Notify({
-            Title = "BATTLE SPAWNER",
-            Content = Value and "Wild battle spawner activated" or "Wild battle spawner deactivated",
-            Duration = 3,
-            Image = Value and "swords" or "circle-slash"
-        })
+        if Value then
+            if not Main then
+                for _,v in pairs(getgc(true)) do
+                    if typeof(v) == "table" and rawget(v, "DataManager") then
+                        Main = v
+                        break
+                    end
+                end
+            end
+            
+            if Main then
+                Rayfield:Notify({
+                    Title = "BATTLE SPAWNER",
+                    Content = "Wild battle spawner activated",
+                    Duration = 3,
+                    Image = "swords"
+                })
+            else
+                Rayfield:Notify({
+                    Title = "ERROR",
+                    Content = "Could not find game data table",
+                    Duration = 5,
+                    Image = "alert-triangle"
+                })
+                WildBattleToggle = false
+            end
+        else
+            Rayfield:Notify({
+                Title = "BATTLE SPAWNER",
+                Content = "Wild battle spawner deactivated",
+                Duration = 3,
+                Image = "circle-slash"
+            })
+        end
     end
 })
 
--- Battle fast-forward toggle
 BattleTab:CreateToggle({
     Name = "⏩ BATTLE FAST-FORWARD",
     CurrentValue = false,
     Flag = "FastForward",
     Callback = function(Value)
         FastForwardToggle = Value
-        Rayfield:Notify({
-            Title = "BATTLE SPEED",
-            Content = Value and "Battle fast-forward activated" or "Battle fast-forward deactivated",
-            Duration = 3,
-            Image = Value and "fast-forward" or "clock"
-        })
+        if Value then
+            if not Main then
+                for _,v in pairs(getgc(true)) do
+                    if typeof(v) == "table" and rawget(v, "DataManager") then
+                        Main = v
+                        break
+                    end
+                end
+            end
+            
+            if Main then
+                Rayfield:Notify({
+                    Title = "BATTLE SPEED",
+                    Content = "Battle fast-forward activated",
+                    Duration = 3,
+                    Image = "fast-forward"
+                })
+            else
+                Rayfield:Notify({
+                    Title = "ERROR",
+                    Content = "Could not find game data table",
+                    Duration = 5,
+                    Image = "alert-triangle"
+                })
+                FastForwardToggle = false
+            end
+        else
+            Rayfield:Notify({
+                Title = "BATTLE SPEED",
+                Content = "Battle fast-forward deactivated",
+                Duration = 3,
+                Image = "clock"
+            })
+        end
     end
 })
-
--- ========== OBFUSCATED AUTO BATTLE SCRIPT ==========
--- Load the obfuscated auto battle code
-local obfuscatedCode = [[
--- This code was generated by Cobalt
--- https://github.com/notpoiu/cobalt
-
-_G.Move = "move 2"
-
--- This file was generated using Luraph Obfuscator v11.3 by memcorrupt.
-
-local lIlllilI1Il1Il11illi1 = assert local iIi1Iili11ii1iIll1l = select local iiiiIliIll1liiIiliI = tonumber local lIlllIi1IiIllliI1IIIl = unpack local Ii1i11llli111I11l1I = pcall local lIiI1II1iIiii1iIl11 = setfenv local i1iilIIiil1I1Ii1il1 = setmetatable local l1iI1llIilI1llI1Il1 = type local Ii1III1lliIIiIlIIli = getfenv local I1illilllI1liIIi11l = tostring local lIIi111liIililI1lii = error local lIl1Il1iIil1I1I1iIlI1 = string.sub local lIli1II1Ii11IIII1il1l = string.byte local ii1IiliIl1IlI1l1ii1 = string.char local lIlliiil1I11II111l1Ii = string.rep local iIl1ilill1i1liIi1li = string.gsub local lIlIIiI1lIlIil1I1IllI = string.match local I1iIliI1I1iIlIliili = 1
-]]
-
--- Execute the obfuscated code
-local success, err = pcall(function()
-    loadstring(obfuscatedCode)()
-end)
-
-if not success then
-    warn("Failed to load auto battle script: " .. tostring(err))
-end
 
 -- ========== MAIN HUNTING LOOP ==========
 task.spawn(function()
@@ -624,6 +562,14 @@ task.spawn(function()
                 local eggs = getEggs()
                 for _, egg in ipairs(eggs) do
                     if not TeleportToggle.CurrentValue or isInBattle() then 
+                        if isInBattle() then
+                            Rayfield:Notify({
+                                Title = "COMBAT DETECTED",
+                                Content = "Teleportation paused",
+                                Duration = 3,
+                                Image = "swords"
+                            })
+                        end
                         break 
                     end
                     if egg and egg.Parent then
@@ -631,6 +577,79 @@ task.spawn(function()
                         task.wait(teleportRate)
                     end
                 end
+            end
+        end)
+    end
+end)
+
+-- ========== BATTLE LOOP ==========
+task.spawn(function()
+    while task.wait() do
+        pcall(function()
+            if AutoBattleEnabled then
+                local BattleGui = PlayerGui:FindFirstChild("BattleGui", true)
+                if BattleGui then
+                    local clickMove3 = BattleGui:FindFirstChild("Move3", true) and BattleGui:FindFirstChild("Move3", true).Button
+                    
+                    local clickFight, restFight
+                    for _, v in ipairs(BattleGui:GetChildren()) do
+                        if v:IsA("ImageLabel") then
+                            if v.ImageColor3 == Color3.fromRGB(218, 83, 255) then
+                                restFight = v:FindFirstChild("Button")
+                            elseif v.ImageColor3 == Color3.fromRGB(255, 102, 102) then
+                                clickFight = v:FindFirstChild("Button")
+                            end
+                        end
+                    end
+
+                    if clickFight and clickFight.Parent.Visible then
+                        local pos = clickFight.AbsolutePosition + Vector2.new(clickFight.AbsoluteSize.X/2, clickFight.AbsoluteSize.Y/2)
+                        mousemoveabs(pos.X, pos.Y)
+                        mouse1click()
+                        task.wait(1)
+                    end
+
+                    if clickMove3 and clickMove3.Parent.Visible then
+                        local pos = clickMove3.AbsolutePosition + Vector2.new(clickMove3.AbsoluteSize.X/2, clickMove3.AbsoluteSize.Y/2)
+                        mousemoveabs(pos.X, pos.Y)
+                        mouse1click()
+                        task.wait(0.3)
+                    elseif restFight and restFight.Parent.Visible then
+                        local pos = restFight.AbsolutePosition + Vector2.new(restFight.AbsoluteSize.X/2, restFight.AbsoluteSize.Y/2)
+                        mousemoveabs(pos.X, pos.Y)
+                        mouse1click()
+                        task.wait(0.3)
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- ========== WILD BATTLE SPAWNER LOOP ==========
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            if WildBattleToggle and Main and Main.DataManager and Main.DataManager.currentChunk and Main.DataManager.currentChunk.regionData and Main.DataManager.currentChunk.regionData.Grass then
+                if Main.Battle and Main.Battle.currentBattle then
+                    Main.Battle.currentBattle.BattleEnded:Fire()
+                    Main.Battle.currentBattle = nil
+                    task.wait(0.5)
+                end
+                if Main.Battle and Main.Battle.doWildBattle then
+                    Main.Battle.doWildBattle(Main.Battle, Main.DataManager.currentChunk.regionData.Grass, {})
+                end
+            end
+        end)
+    end
+end)
+
+-- ========== BATTLE FAST-FORWARD LOOP ==========
+task.spawn(function()
+    while task.wait() do
+        pcall(function()
+            if FastForwardToggle and Main and Main.Battle and Main.Battle.currentBattle then
+                Main.Battle.currentBattle.fastForward = true
             end
         end)
     end
@@ -652,7 +671,7 @@ end
 task.wait(1)
 Rayfield:Notify({
    Title = "OWNER SYSTEM ONLINE",
-   Content = "Premium controls activated\nAuto Rally + Auto Battle",
+   Content = "Premium controls activated\nAuto Rally + Egg Hunter",
    Duration = 6,
    Image = "shield-check"
 })
