@@ -56,9 +56,6 @@ local isRallyRunning = false
 local REQEvent = game:GetService("ReplicatedStorage"):FindFirstChild("Remote") and game:GetService("ReplicatedStorage").Remote:FindFirstChild("REQ")
 local playerKey = ""
 
--- Get UserInputService for better input simulation
-local UserInputService = game:GetService("UserInputService")
-
 -- Safety check for REQ event
 if not REQEvent then
     warn("REQ Remote not found! Auto Rally may not work.")
@@ -557,25 +554,14 @@ BattleTab:CreateToggle({
     end
 })
 
--- ========== FIXED BATTLE LOOP FOR MOBILE (USING UserInputService) ==========
+-- ========== BATTLE LOOP WITH BUTTON:ACTIVATE() ==========
 local function clickButton(button)
-    if not button or not button.Parent or not button.Parent.Visible then
-        return false
+    if button and button.Parent and button.Parent.Visible then
+        button:Activate()
+        task.wait(0.2)
+        return true
     end
-    
-    -- Calculate center with 10 pixel offset down
-    local centerX = button.AbsolutePosition.X + (button.AbsoluteSize.X / 2)
-    local centerY = button.AbsolutePosition.Y + (button.AbsoluteSize.Y / 2) + 10
-    
-    -- Use UserInputService for mobile compatibility
-    UserInputService:MouseMove(centerX, centerY)
-    task.wait(0.1)
-    
-    -- Simulate mouse click
-    UserInputService:MouseButton1Click()
-    task.wait(0.2)
-    
-    return true
+    return false
 end
 
 task.spawn(function()
