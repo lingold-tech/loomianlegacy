@@ -554,71 +554,6 @@ BattleTab:CreateToggle({
     end
 })
 
--- ========== BATTLE LOOP WITH BUTTON:ACTIVATE() ==========
-local function clickButton(button)
-    if button and button.Parent and button.Parent.Visible then
-        button:Activate()
-        task.wait(0.2)
-        return true
-    end
-    return false
-end
-
-task.spawn(function()
-    while task.wait(0.2) do
-        pcall(function()
-            if AutoBattleEnabled then
-                local BattleGui = PlayerGui:FindFirstChild("BattleGui", true)
-                if BattleGui then
-                    -- Find move buttons
-                    local move1 = BattleGui:FindFirstChild("Move1", true)
-                    local move2 = BattleGui:FindFirstChild("Move2", true)
-                    local move3 = BattleGui:FindFirstChild("Move3", true)
-                    local move4 = BattleGui:FindFirstChild("Move4", true)
-                    
-                    local fightBtn = nil
-                    local restBtn = nil
-                    
-                    -- Find fight and rest buttons
-                    for _, v in ipairs(BattleGui:GetChildren()) do
-                        if v:IsA("ImageLabel") then
-                            if v.ImageColor3 == Color3.fromRGB(255, 102, 102) then
-                                fightBtn = v:FindFirstChild("Button")
-                            elseif v.ImageColor3 == Color3.fromRGB(218, 83, 255) then
-                                restBtn = v:FindFirstChild("Button")
-                            end
-                        end
-                    end
-                    
-                    -- Click fight button first if visible
-                    if fightBtn and fightBtn.Parent and fightBtn.Parent.Visible then
-                        clickButton(fightBtn)
-                        task.wait(1)
-                    end
-                    
-                    -- Then click moves in priority order
-                    if move3 and move3.Button and move3.Button.Parent and move3.Button.Parent.Visible then
-                        clickButton(move3.Button)
-                        task.wait(0.5)
-                    elseif move2 and move2.Button and move2.Button.Parent and move2.Button.Parent.Visible then
-                        clickButton(move2.Button)
-                        task.wait(0.5)
-                    elseif move1 and move1.Button and move1.Button.Parent and move1.Button.Parent.Visible then
-                        clickButton(move1.Button)
-                        task.wait(0.5)
-                    elseif move4 and move4.Button and move4.Button.Parent and move4.Button.Parent.Visible then
-                        clickButton(move4.Button)
-                        task.wait(0.5)
-                    elseif restBtn and restBtn.Parent and restBtn.Parent.Visible then
-                        clickButton(restBtn)
-                        task.wait(0.5)
-                    end
-                end
-            end
-        end)
-    end
-end)
-
 -- ========== MAIN HUNTING LOOP ==========
 task.spawn(function()
     while task.wait() do
@@ -640,6 +575,50 @@ task.spawn(function()
                     if egg and egg.Parent then
                         humanoid.RootPart.CFrame = CFrame.new(egg.Position)
                         task.wait(teleportRate)
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- ========== BATTLE LOOP ==========
+task.spawn(function()
+    while task.wait() do
+        pcall(function()
+            if AutoBattleEnabled then
+                local BattleGui = PlayerGui:FindFirstChild("BattleGui", true)
+                if BattleGui then
+                    local clickMove3 = BattleGui:FindFirstChild("Move3", true) and BattleGui:FindFirstChild("Move3", true).Button
+                    
+                    local clickFight, restFight
+                    for _, v in ipairs(BattleGui:GetChildren()) do
+                        if v:IsA("ImageLabel") then
+                            if v.ImageColor3 == Color3.fromRGB(218, 83, 255) then
+                                restFight = v:FindFirstChild("Button")
+                            elseif v.ImageColor3 == Color3.fromRGB(255, 102, 102) then
+                                clickFight = v:FindFirstChild("Button")
+                            end
+                        end
+                    end
+
+                    if clickFight and clickFight.Parent.Visible then
+                        local pos = clickFight.AbsolutePosition + Vector2.new(clickFight.AbsoluteSize.X/2, clickFight.AbsoluteSize.Y/2)
+                        mousemoveabs(pos.X, pos.Y)
+                        mouse1click()
+                        task.wait(1)
+                    end
+
+                    if clickMove3 and clickMove3.Parent.Visible then
+                        local pos = clickMove3.AbsolutePosition + Vector2.new(clickMove3.AbsoluteSize.X/2, clickMove3.AbsoluteSize.Y/2)
+                        mousemoveabs(pos.X, pos.Y)
+                        mouse1click()
+                        task.wait(0.3)
+                    elseif restFight and restFight.Parent.Visible then
+                        local pos = restFight.AbsolutePosition + Vector2.new(restFight.AbsoluteSize.X/2, restFight.AbsoluteSize.Y/2)
+                        mousemoveabs(pos.X, pos.Y)
+                        mouse1click()
+                        task.wait(0.3)
                     end
                 end
             end
