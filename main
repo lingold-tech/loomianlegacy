@@ -53,9 +53,9 @@ local FastForwardToggle = false
 -- Rally Variables
 local isRallyRunning = false
 local REQEvent = game:GetService("ReplicatedStorage"):FindFirstChild("Remote") and game:GetService("ReplicatedStorage").Remote:FindFirstChild("REQ")
+local EVTEvent = game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("EVT")
 local playerKey = ""
 local keyHookActive = false
-local keyHookConnection = nil
 
 -- Safety check for REQ event
 if not REQEvent then
@@ -210,83 +210,65 @@ local function StopAutoRally()
     print("⏹️ Auto Rally stopped")
 end
 
--- ========== AUTO KEY EXTRACTOR (hookmetamethod) ==========
+-- ========== AUTO KEY EXTRACTOR (hookfunction) ==========
+local keyHookOriginal = nil
+
 local function StartKeyExtractor(KeyInput)
     if keyHookActive then
         print("⚠️ Key extractor already running")
         return
     end
 
-    local ok, mt = pcall(getrawmetatable, game)
-    if not ok or not mt then
+    local ok = pcall(function()
+        keyHookOriginal = hookfunction(EVTEvent.FireServer, function(self, ...)
+            local args = {...}
+            for _, v in pairs(args) do
+                if typeof(v) == "string" and #v >= 20 then
+                    if playerKey ~= v then
+                        playerKey = v
+                        print("🔑 Key auto-captured: " .. playerKey)
+                        if KeyInput then
+                            pcall(function() KeyInput:Set(playerKey) end)
+                        end
+                        Rayfield:Notify({
+                            Title = "🔑 KEY CAPTURED",
+                            Content = playerKey:sub(1, 12) .. "...",
+                            Duration = 4,
+                            Image = "key"
+                        })
+                    end
+                end
+            end
+            return keyHookOriginal(self, ...)
+        end)
+    end)
+
+    if ok then
+        keyHookActive = true
+        print("✅ Key extractor hook active")
+        Rayfield:Notify({
+            Title = "🔍 KEY EXTRACTOR ON",
+            Content = "Listening for key on next EVT call...",
+            Duration = 3,
+            Image = "search"
+        })
+    else
         Rayfield:Notify({
             Title = "❌ HOOK FAILED",
-            Content = "Could not get game metatable",
+            Content = "hookfunction not supported",
             Duration = 4,
             Image = "alert-triangle"
         })
-        return
     end
-
-    pcall(setreadonly, mt, false)
-
-    local oldNamecall = mt.__namecall
-    mt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        if method == "FireServer" or method == "InvokeServer" then
-            local args = {...}
-            if typeof(args[1]) == "string"
-                and #args[1] >= 20
-                and #args[1] <= 35
-                and args[1]:match("^[a-zA-Z0-9]+$") then
-
-                if playerKey ~= args[1] then
-                    playerKey = args[1]
-                    print("🔑 Key auto-captured: " .. playerKey)
-
-                    -- Auto-fill the input field
-                    if KeyInput then
-                        pcall(function() KeyInput:Set(playerKey) end)
-                    end
-
-                    Rayfield:Notify({
-                        Title = "🔑 KEY CAPTURED",
-                        Content = playerKey:sub(1, 12) .. "...",
-                        Duration = 4,
-                        Image = "key"
-                    })
-                end
-            end
-        end
-        return oldNamecall(self, ...)
-    end)
-
-    pcall(setreadonly, mt, true)
-    keyHookActive = true
-    print("✅ Key extractor hook active")
-
-    Rayfield:Notify({
-        Title = "🔍 KEY EXTRACTOR ON",
-        Content = "Listening for key on next remote call...",
-        Duration = 3,
-        Image = "search"
-    })
 end
 
 local function StopKeyExtractor()
     if not keyHookActive then return end
-
-    local ok, mt = pcall(getrawmetatable, game)
-    if ok and mt then
-        pcall(setreadonly, mt, false)
-        -- Restore by re-setting to a passthrough (safest without storing ref globally)
-        local orig = mt.__namecall
-        mt.__namecall = newcclosure(function(self, ...)
-            return orig(self, ...)
+    if keyHookOriginal then
+        pcall(function()
+            hookfunction(EVTEvent.FireServer, keyHookOriginal)
         end)
-        pcall(setreadonly, mt, true)
     end
-
     keyHookActive = false
     print("⏹️ Key extractor stopped")
     Rayfield:Notify({
