@@ -7,7 +7,6 @@ local success, result = pcall(function()
 end)
 
 if not success or not Rayfield then
-    -- Fallback to a different URL
     success, result = pcall(function()
         Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/SiriusSoftwareLtd/Rayfield/main/source.lua'))()
     end)
@@ -55,6 +54,8 @@ local FastForwardToggle = false
 local isRallyRunning = false
 local REQEvent = game:GetService("ReplicatedStorage"):FindFirstChild("Remote") and game:GetService("ReplicatedStorage").Remote:FindFirstChild("REQ")
 local playerKey = ""
+local keyHookActive = false
+local keyHookConnection = nil
 
 -- Safety check for REQ event
 if not REQEvent then
@@ -209,6 +210,93 @@ local function StopAutoRally()
     print("⏹️ Auto Rally stopped")
 end
 
+-- ========== AUTO KEY EXTRACTOR (hookmetamethod) ==========
+local function StartKeyExtractor(KeyInput)
+    if keyHookActive then
+        print("⚠️ Key extractor already running")
+        return
+    end
+
+    local ok, mt = pcall(getrawmetatable, game)
+    if not ok or not mt then
+        Rayfield:Notify({
+            Title = "❌ HOOK FAILED",
+            Content = "Could not get game metatable",
+            Duration = 4,
+            Image = "alert-triangle"
+        })
+        return
+    end
+
+    pcall(setreadonly, mt, false)
+
+    local oldNamecall = mt.__namecall
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if method == "FireServer" or method == "InvokeServer" then
+            local args = {...}
+            if typeof(args[1]) == "string"
+                and #args[1] >= 20
+                and #args[1] <= 35
+                and args[1]:match("^[a-zA-Z0-9]+$") then
+
+                if playerKey ~= args[1] then
+                    playerKey = args[1]
+                    print("🔑 Key auto-captured: " .. playerKey)
+
+                    -- Auto-fill the input field
+                    if KeyInput then
+                        pcall(function() KeyInput:Set(playerKey) end)
+                    end
+
+                    Rayfield:Notify({
+                        Title = "🔑 KEY CAPTURED",
+                        Content = playerKey:sub(1, 12) .. "...",
+                        Duration = 4,
+                        Image = "key"
+                    })
+                end
+            end
+        end
+        return oldNamecall(self, ...)
+    end)
+
+    pcall(setreadonly, mt, true)
+    keyHookActive = true
+    print("✅ Key extractor hook active")
+
+    Rayfield:Notify({
+        Title = "🔍 KEY EXTRACTOR ON",
+        Content = "Listening for key on next remote call...",
+        Duration = 3,
+        Image = "search"
+    })
+end
+
+local function StopKeyExtractor()
+    if not keyHookActive then return end
+
+    local ok, mt = pcall(getrawmetatable, game)
+    if ok and mt then
+        pcall(setreadonly, mt, false)
+        -- Restore by re-setting to a passthrough (safest without storing ref globally)
+        local orig = mt.__namecall
+        mt.__namecall = newcclosure(function(self, ...)
+            return orig(self, ...)
+        end)
+        pcall(setreadonly, mt, true)
+    end
+
+    keyHookActive = false
+    print("⏹️ Key extractor stopped")
+    Rayfield:Notify({
+        Title = "🔍 KEY EXTRACTOR OFF",
+        Content = "Hook removed",
+        Duration = 2,
+        Image = "x-circle"
+    })
+end
+
 -- Create Tabs
 local MainTab = Window:CreateTab("Main Controls", "settings")
 local RallyTab = Window:CreateTab("Auto Rally", "clock")
@@ -303,11 +391,11 @@ MainTab:CreateSlider({
 })
 
 -- ========== RALLY TAB ==========
-RallyTab:CreateSection("Auto Rally System")
+RallyTab:CreateSection("Key System")
 
 local KeyInput = RallyTab:CreateInput({
-    Name = "Enter Your Key",
-    PlaceholderText = "Paste your key here",
+    Name = "🔑 Player Key",
+    PlaceholderText = "Paste your key here or use Auto-Extract",
     RemoveTextAfterFocusLost = false,
     Flag = "PlayerKey",
     Callback = function(Text)
@@ -321,6 +409,49 @@ local KeyInput = RallyTab:CreateInput({
         })
     end
 })
+
+-- Auto Key Extractor Toggle (defined after KeyInput so it can reference it)
+RallyTab:CreateToggle({
+    Name = "🔍 AUTO KEY EXTRACTOR",
+    CurrentValue = false,
+    Flag = "KeyExtractorToggle",
+    Callback = function(Value)
+        if Value then
+            StartKeyExtractor(KeyInput)
+        else
+            StopKeyExtractor()
+        end
+    end
+})
+
+RallyTab:CreateButton({
+    Name = "🔍 Extract Key Now",
+    Callback = function()
+        StartKeyExtractor(KeyInput)
+        Rayfield:Notify({
+            Title = "🔍 LISTENING...",
+            Content = "Key will auto-fill on next remote call",
+            Duration = 3,
+            Image = "search"
+        })
+    end
+})
+
+RallyTab:CreateButton({
+    Name = "🧹 Clear Key",
+    Callback = function()
+        playerKey = ""
+        pcall(function() KeyInput:Set("") end)
+        Rayfield:Notify({
+            Title = "KEY CLEARED",
+            Content = "Key has been removed",
+            Duration = 2,
+            Image = "trash"
+        })
+    end
+})
+
+RallyTab:CreateSection("Auto Rally System")
 
 local RallyInterval = RallyTab:CreateSlider({
     Name = "Rally Interval (minutes)",
@@ -339,7 +470,7 @@ local RallyToggle = RallyTab:CreateToggle({
             if playerKey == "" then
                 Rayfield:Notify({
                     Title = "⚠️ NO KEY",
-                    Content = "Please enter a key first",
+                    Content = "Please enter or extract a key first",
                     Duration = 3,
                     Image = "alert-circle"
                 })
@@ -354,12 +485,12 @@ local RallyToggle = RallyTab:CreateToggle({
 })
 
 RallyTab:CreateButton({
-    Name = "Run Rally Sequence Now",
+    Name = "▶️ Run Rally Sequence Now",
     Callback = function()
         if playerKey == "" then
             Rayfield:Notify({
                 Title = "⚠️ NO KEY",
-                Content = "Please enter a key first",
+                Content = "Please enter or extract a key first",
                 Duration = 2,
                 Image = "alert-circle"
             })
@@ -370,13 +501,13 @@ RallyTab:CreateButton({
 })
 
 RallyTab:CreateButton({
-    Name = "Test Current Key",
+    Name = "🔎 Test Current Key",
     Callback = function()
         if playerKey ~= "" then
             print("🔑 Current key: " .. playerKey)
             Rayfield:Notify({
                 Title = "KEY INFO",
-                Content = "Key length: " .. #playerKey .. " characters",
+                Content = "Key: " .. playerKey:sub(1, 10) .. "... (" .. #playerKey .. " chars)",
                 Duration = 3,
                 Image = "key"
             })
@@ -384,7 +515,7 @@ RallyTab:CreateButton({
             print("⚠️ No key entered")
             Rayfield:Notify({
                 Title = "NO KEY",
-                Content = "Please enter a key first",
+                Content = "Please enter or extract a key first",
                 Duration = 2,
                 Image = "alert-circle"
             })
@@ -660,18 +791,20 @@ Rayfield:LoadConfiguration()
 
 -- Load saved key
 task.wait(1)
-if KeyInput and KeyInput.CurrentValue then
+if KeyInput and KeyInput.CurrentValue and KeyInput.CurrentValue ~= "" then
     playerKey = KeyInput.CurrentValue
-    if playerKey ~= "" then
-        print("💾 Loaded saved key: " .. playerKey)
-    end
+    print("💾 Loaded saved key: " .. playerKey)
 end
 
+-- Auto-start key extractor on load
+task.wait(0.5)
+StartKeyExtractor(KeyInput)
+
 -- Welcome Notification
-task.wait(1)
+task.wait(0.5)
 Rayfield:Notify({
    Title = "OWNER SYSTEM ONLINE",
-   Content = "Premium controls activated\nAuto Rally + Egg Hunter",
+   Content = "Premium controls activated\nAuto Rally + Egg Hunter\n🔍 Key extractor listening...",
    Duration = 6,
    Image = "shield-check"
 })
