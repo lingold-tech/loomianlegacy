@@ -719,19 +719,19 @@ task.spawn(function()
                         local pos = clickFight.AbsolutePosition + Vector2.new(clickFight.AbsoluteSize.X/2, clickFight.AbsoluteSize.Y/2)
                         mousemoveabs(pos.X, pos.Y)
                         mouse1click()
-                        task.wait(1)
+                        task.wait(10)
                     end
 
                     if clickMove3 and clickMove3.Parent.Visible then
                         local pos = clickMove3.AbsolutePosition + Vector2.new(clickMove3.AbsoluteSize.X/2, clickMove3.AbsoluteSize.Y/2)
                         mousemoveabs(pos.X, pos.Y)
                         mouse1click()
-                        task.wait(0.3)
+                        task.wait(10)
                     elseif restFight and restFight.Parent.Visible then
                         local pos = restFight.AbsolutePosition + Vector2.new(restFight.AbsoluteSize.X/2, restFight.AbsoluteSize.Y/2)
                         mousemoveabs(pos.X, pos.Y)
                         mouse1click()
-                        task.wait(0.3)
+                        task.wait(10)
                     end
                 end
             end
