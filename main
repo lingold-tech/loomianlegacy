@@ -57,8 +57,9 @@ local EVTEvent = game:GetService("ReplicatedStorage"):WaitForChild("Remote"):Wai
 local playerKey = ""
 local keyHookActive = false
 
--- NEW: Store current wild loomian ID
+-- Wild ID capture variable (only current battle)
 local currentWildID = nil
+local keyCaptured = false  -- flag to ensure key is only captured once
 
 -- Safety check for REQ event
 if not REQEvent then
@@ -225,12 +226,13 @@ local function StartKeyExtractor(KeyInput)
     local ok = pcall(function()
         keyHookOriginal = hookfunction(EVTEvent.FireServer, function(self, ...)
             local args = {...}
-            -- Capture player key
-            for _, v in pairs(args) do
-                if typeof(v) == "string" and #v >= 20 then
-                    if playerKey ~= v then
+            -- Capture player key ONCE (only if not already captured)
+            if not keyCaptured then
+                for _, v in pairs(args) do
+                    if typeof(v) == "string" and #v >= 20 then
                         playerKey = v
-                        print("🔑 Key auto-captured: " .. playerKey)
+                        keyCaptured = true
+                        print("🔑 [CONSOLE] Player key captured: " .. playerKey)
                         if KeyInput then
                             pcall(function() KeyInput:Set(v) end)
                         end
@@ -240,16 +242,17 @@ local function StartKeyExtractor(KeyInput)
                             Duration = 4,
                             Image = "key"
                         })
+                        break
                     end
                 end
             end
-            -- NEW: Capture wild loomian ID from battle join event
-            -- Expected pattern: (playerKey, "BattleEvent", wildID, "join", 1, "blue")
+            
+            -- Capture wild loomian ID for each battle (overwrites previous)
             if args[2] == "BattleEvent" and args[4] == "join" then
                 local wildID = args[3]
                 if wildID and typeof(wildID) == "string" and #wildID > 5 then
                     currentWildID = wildID
-                    print("🐾 Wild loomian ID captured: " .. currentWildID)
+                    print("🐾 [CONSOLE] Wild loomian ID captured (new battle): " .. currentWildID)
                     Rayfield:Notify({
                         Title = "🐾 WILD ID CAPTURED",
                         Content = "Opponent ID: " .. wildID:sub(1, 10) .. "...",
@@ -258,13 +261,14 @@ local function StartKeyExtractor(KeyInput)
                     })
                 end
             end
+            
             return keyHookOriginal(self, ...)
         end)
     end)
 
     if ok then
         keyHookActive = true
-        print("✅ Key extractor hook active (also captures wild IDs)")
+        print("✅ Key extractor hook active (listening for key & wild IDs)")
         Rayfield:Notify({
             Title = "🔍 KEY EXTRACTOR ON",
             Content = "Listening for key & wild IDs...",
@@ -297,21 +301,6 @@ local function StopKeyExtractor()
         Image = "x-circle"
     })
 end
-
--- Helper to clear wild ID when battle ends
-local function watchForBattleEnd()
-    task.spawn(function()
-        while true do
-            task.wait(0.5)
-            local inBattle = PlayerGui:FindFirstChild("BattleGui", true) ~= nil
-            if not inBattle and currentWildID then
-                currentWildID = nil
-                print("🧹 Wild ID cleared (battle ended)")
-            end
-        end
-    end)
-end
-watchForBattleEnd()
 
 -- Create Tabs
 local MainTab = Window:CreateTab("Main Controls", "settings")
@@ -416,7 +405,8 @@ local KeyInput = RallyTab:CreateInput({
     Flag = "PlayerKey",
     Callback = function(Text)
         playerKey = Text
-        print("🔑 Key set to: " .. Text)
+        if Text ~= "" then keyCaptured = true end
+        print("🔑 [CONSOLE] Key manually set to: " .. Text)
         Rayfield:Notify({
             Title = "KEY SET",
             Content = "Rally key has been saved",
@@ -457,7 +447,9 @@ RallyTab:CreateButton({
     Name = "🧹 Clear Key",
     Callback = function()
         playerKey = ""
+        keyCaptured = false
         pcall(function() KeyInput:Set("") end)
+        print("🧹 [CONSOLE] Key cleared")
         Rayfield:Notify({
             Title = "KEY CLEARED",
             Content = "Key has been removed",
@@ -520,7 +512,7 @@ RallyTab:CreateButton({
     Name = "🔎 Test Current Key",
     Callback = function()
         if playerKey ~= "" then
-            print("🔑 Current key: " .. playerKey)
+            print("🔑 [CONSOLE] Current key: " .. playerKey)
             Rayfield:Notify({
                 Title = "KEY INFO",
                 Content = "Key: " .. playerKey:sub(1, 10) .. "... (" .. #playerKey .. " chars)",
@@ -528,7 +520,7 @@ RallyTab:CreateButton({
                 Image = "key"
             })
         else
-            print("⚠️ No key entered")
+            print("⚠️ [CONSOLE] No key entered")
             Rayfield:Notify({
                 Title = "NO KEY",
                 Content = "Please enter or extract a key first",
@@ -606,6 +598,7 @@ BattleTab:CreateToggle({
     Flag = "AutoBattle",
     Callback = function(Value)
         AutoBattleEnabled = Value
+        print("⚔️ [CONSOLE] Auto-battle: " .. (Value and "enabled" or "disabled"))
         Rayfield:Notify({
             Title = "BATTLE SYSTEM",
             Content = Value and "Auto-battle enabled" or "Auto-battle disabled",
@@ -632,6 +625,7 @@ BattleTab:CreateToggle({
             end
             
             if Main then
+                print("🌿 [CONSOLE] Wild battle spawner activated")
                 Rayfield:Notify({
                     Title = "BATTLE SPAWNER",
                     Content = "Wild battle spawner activated",
@@ -639,6 +633,7 @@ BattleTab:CreateToggle({
                     Image = "swords"
                 })
             else
+                print("❌ [CONSOLE] Could not find game data table")
                 Rayfield:Notify({
                     Title = "ERROR",
                     Content = "Could not find game data table",
@@ -648,6 +643,7 @@ BattleTab:CreateToggle({
                 WildBattleToggle = false
             end
         else
+            print("🌿 [CONSOLE] Wild battle spawner deactivated")
             Rayfield:Notify({
                 Title = "BATTLE SPAWNER",
                 Content = "Wild battle spawner deactivated",
@@ -675,6 +671,7 @@ BattleTab:CreateToggle({
             end
             
             if Main then
+                print("⏩ [CONSOLE] Battle fast-forward activated")
                 Rayfield:Notify({
                     Title = "BATTLE SPEED",
                     Content = "Battle fast-forward activated",
@@ -682,6 +679,7 @@ BattleTab:CreateToggle({
                     Image = "fast-forward"
                 })
             else
+                print("❌ [CONSOLE] Could not find game data table")
                 Rayfield:Notify({
                     Title = "ERROR",
                     Content = "Could not find game data table",
@@ -691,6 +689,7 @@ BattleTab:CreateToggle({
                 FastForwardToggle = false
             end
         else
+            print("⏩ [CONSOLE] Battle fast-forward deactivated")
             Rayfield:Notify({
                 Title = "BATTLE SPEED",
                 Content = "Battle fast-forward deactivated",
@@ -710,6 +709,7 @@ task.spawn(function()
                 for _, egg in ipairs(eggs) do
                     if not TeleportToggle.CurrentValue or isInBattle() then 
                         if isInBattle() then
+                            print("⚠️ [CONSOLE] Battle detected, teleport paused")
                             Rayfield:Notify({
                                 Title = "COMBAT DETECTED",
                                 Content = "Teleportation paused",
@@ -729,39 +729,21 @@ task.spawn(function()
     end
 end)
 
--- ========== REWORKED AUTO-BATTLE LOOP (using remotes) ==========
+-- ========== REWORKED AUTO-BATTLE LOOP (using REQ remote with tryRun) ==========
 task.spawn(function()
     while task.wait() do
         pcall(function()
             if AutoBattleEnabled then
                 local BattleGui = PlayerGui:FindFirstChild("BattleGui", true)
                 if BattleGui and currentWildID and playerKey ~= "" then
-                    -- Determine which move to use (same logic as before)
-                    local clickMove3 = BattleGui:FindFirstChild("Move3", true) and BattleGui:FindFirstChild("Move3", true).Button
-                    local restFight = nil
-                    for _, v in ipairs(BattleGui:GetChildren()) do
-                        if v:IsA("ImageLabel") and v.ImageColor3 == Color3.fromRGB(218, 83, 255) then
-                            restFight = v:FindFirstChild("Button")
-                            break
-                        end
-                    end
-
-                    local moveName = nil
-                    if clickMove3 and clickMove3.Parent.Visible then
-                        moveName = "move 3"
-                    elseif restFight and restFight.Parent.Visible then
-                        moveName = "rest"
-                    else
-                        -- Fallback to move 1 if no other move available
-                        moveName = "move 1"
-                    end
-
-                    -- Fire the remote to choose the move
-                    EVTEvent:FireServer(playerKey, "BattleEvent", currentWildID, "choose", "p1", { moveName }, 1)
-                    print("⚔️ Auto-battle: used " .. moveName)
-                    
-                    -- Wait a bit to avoid spamming
-                    task.wait(1)
+                    -- Use the REQ remote to execute a move
+                    REQEvent:InvokeServer(playerKey, "BattleFunction", currentWildID, "tryRun")
+                    print("⚔️ [CONSOLE] Auto-battle: used tryRun against " .. currentWildID)
+                    task.wait(1) -- delay to avoid spamming
+                elseif BattleGui and not currentWildID then
+                    print("⚠️ [CONSOLE] In battle but no wild ID captured yet")
+                elseif BattleGui and playerKey == "" then
+                    print("⚠️ [CONSOLE] In battle but no player key set")
                 end
             end
         end)
@@ -780,6 +762,7 @@ task.spawn(function()
                 end
                 if Main.Battle and Main.Battle.doWildBattle then
                     Main.Battle.doWildBattle(Main.Battle, Main.DataManager.currentChunk.regionData.Grass, {})
+                    print("🌿 [CONSOLE] Spawned wild battle")
                 end
             end
         end)
@@ -804,7 +787,8 @@ Rayfield:LoadConfiguration()
 task.wait(1)
 if KeyInput and KeyInput.CurrentValue and KeyInput.CurrentValue ~= "" then
     playerKey = KeyInput.CurrentValue
-    print("💾 Loaded saved key: " .. playerKey)
+    keyCaptured = true
+    print("💾 [CONSOLE] Loaded saved key: " .. playerKey)
 end
 
 -- Auto-start key extractor on load
@@ -819,3 +803,4 @@ Rayfield:Notify({
    Duration = 6,
    Image = "shield-check"
 })
+print("✅ Script loaded - Key extractor active. Waiting for remote events...")
