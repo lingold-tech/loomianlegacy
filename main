@@ -57,6 +57,13 @@ local EVTEvent = game:GetService("ReplicatedStorage"):WaitForChild("Remote"):Wai
 local playerKey = ""
 local keyHookActive = false
 
+-- Services for clicking
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+-- Click offset (lower by 50 pixels)
+local CLICK_OFFSET_Y = 50
+
 -- Safety check for REQ event
 if not REQEvent then
     warn("REQ Remote not found! Auto Rally may not work.")
@@ -110,6 +117,14 @@ local function isInBattle()
     return PlayerGui:FindFirstChild("BattleGui", true) ~= nil
 end
 
+-- Click function using VirtualInputManager with Y offset
+local function clickAtPosition(x, y)
+    local adjustedY = y + CLICK_OFFSET_Y
+    VirtualInputManager:SendMouseButtonEvent(x, adjustedY, 0, true, game, 0)
+    task.wait(0.05)
+    VirtualInputManager:SendMouseButtonEvent(x, adjustedY, 0, false, game, 0)
+end
+
 -- Egg Detection System
 local function getEggs()
     local eggs = {}
@@ -124,16 +139,16 @@ end
 -- ========== RALLY SEQUENCE ==========
 local function RunRallySequence()
     if not REQEvent then
-        print("âŒ REQ Remote not found!")
+        print("❌ REQ Remote not found!")
         return false
     end
     
     if playerKey == "" then
-        print("âš ï¸ Please enter your key first!")
+        print("⚠️ Please enter your key first!")
         return false
     end
     
-    print("ðŸš€ Running rally sequence at: " .. os.date("%H:%M:%S"))
+    print("🚀 Running rally sequence at: " .. os.date("%H:%M:%S"))
     
     local success, err = pcall(function()
         -- Step 1: ranchStatus
@@ -173,18 +188,18 @@ local function RunRallySequence()
     end)
     
     if success then
-        print("âœ… Rally sequence completed at: " .. os.date("%H:%M:%S"))
+        print("✅ Rally sequence completed at: " .. os.date("%H:%M:%S"))
         Rayfield:Notify({
-            Title = "âœ… RALLY CLAIMED",
+            Title = "✅ RALLY CLAIMED",
             Content = "Successfully claimed rally!",
             Duration = 3,
             Image = "check-circle"
         })
         return true
     else
-        print("âŒ Sequence failed: " .. tostring(err))
+        print("❌ Sequence failed: " .. tostring(err))
         Rayfield:Notify({
-            Title = "âŒ CLAIM FAILED",
+            Title = "❌ CLAIM FAILED",
             Content = "Error: " .. tostring(err):sub(1, 50),
             Duration = 4,
             Image = "alert-triangle"
@@ -195,7 +210,7 @@ end
 
 local function StartAutoRally(interval)
     isRallyRunning = true
-    print("â–¶ï¸ Auto Rally started - Running every " .. interval .. " minutes")
+    print("▶️ Auto Rally started - Running every " .. interval .. " minutes")
     
     task.spawn(function()
         while isRallyRunning do
@@ -207,7 +222,7 @@ end
 
 local function StopAutoRally()
     isRallyRunning = false
-    print("â¹ï¸ Auto Rally stopped")
+    print("⏹️ Auto Rally stopped")
 end
 
 -- ========== AUTO KEY EXTRACTOR (hookfunction) ==========
@@ -215,7 +230,7 @@ local keyHookOriginal = nil
 
 local function StartKeyExtractor(KeyInput)
     if keyHookActive then
-        print("âš ï¸ Key extractor already running")
+        print("⚠️ Key extractor already running")
         return
     end
 
@@ -226,12 +241,12 @@ local function StartKeyExtractor(KeyInput)
                 if typeof(v) == "string" and #v >= 20 then
                     if playerKey ~= v then
                         playerKey = v
-                        print("ðŸ”‘ Key auto-captured: " .. playerKey)
+                        print("🔑 Key auto-captured: " .. playerKey)
                         if KeyInput then
-                            pcall(function() KeyInput:Set(playerKey) end)
+                            pcall(function() KeyInput:Set(v) end)
                         end
                         Rayfield:Notify({
-                            Title = "ðŸ”‘ KEY CAPTURED",
+                            Title = "🔑 KEY CAPTURED",
                             Content = playerKey:sub(1, 12) .. "...",
                             Duration = 4,
                             Image = "key"
@@ -245,16 +260,16 @@ local function StartKeyExtractor(KeyInput)
 
     if ok then
         keyHookActive = true
-        print("âœ… Key extractor hook active")
+        print("✅ Key extractor hook active")
         Rayfield:Notify({
-            Title = "ðŸ” KEY EXTRACTOR ON",
+            Title = "🔍 KEY EXTRACTOR ON",
             Content = "Listening for key on next EVT call...",
             Duration = 3,
             Image = "search"
         })
     else
         Rayfield:Notify({
-            Title = "âŒ HOOK FAILED",
+            Title = "❌ HOOK FAILED",
             Content = "hookfunction not supported",
             Duration = 4,
             Image = "alert-triangle"
@@ -270,9 +285,9 @@ local function StopKeyExtractor()
         end)
     end
     keyHookActive = false
-    print("â¹ï¸ Key extractor stopped")
+    print("⏹️ Key extractor stopped")
     Rayfield:Notify({
-        Title = "ðŸ” KEY EXTRACTOR OFF",
+        Title = "🔍 KEY EXTRACTOR OFF",
         Content = "Hook removed",
         Duration = 2,
         Image = "x-circle"
@@ -289,7 +304,7 @@ local BattleTab = Window:CreateTab("Battle System", "swords")
 MainTab:CreateSection("Music System")
 
 MainTab:CreateButton({
-   Name = "â–¶ï¸ PLAY MUSIC",
+   Name = "▶️ PLAY MUSIC",
    Callback = function()
         playMusic()
         Rayfield:Notify({
@@ -302,7 +317,7 @@ MainTab:CreateButton({
 })
 
 MainTab:CreateButton({
-   Name = "â¹ STOP MUSIC",
+   Name = "⏹ STOP MUSIC",
    Callback = function()
         if musicSound then 
             musicSound:Stop()
@@ -319,7 +334,7 @@ MainTab:CreateButton({
 MainTab:CreateSection("Hunting System")
 
 local TeleportToggle = MainTab:CreateToggle({
-   Name = "âš¡ AUTO-TELEPORT",
+   Name = "⚡ AUTO-TELEPORT",
    CurrentValue = false,
    Flag = "TeleportToggle",
    Callback = function(Value)
@@ -343,7 +358,7 @@ local TeleportToggle = MainTab:CreateToggle({
 })
 
 MainTab:CreateSlider({
-   Name = "ðŸ“ Y-AXIS LIMIT",
+   Name = "📏 Y-AXIS LIMIT",
    Range = {1, 5000},
    Increment = 1,
    Suffix = "studs",
@@ -355,7 +370,7 @@ MainTab:CreateSlider({
 })
 
 MainTab:CreateSlider({
-   Name = "â± TELEPORT RATE",
+   Name = "⏱ TELEPORT RATE",
    Range = {0.1, 1},
    Increment = 0.01,
    Suffix = "seconds",
@@ -376,13 +391,13 @@ MainTab:CreateSlider({
 RallyTab:CreateSection("Key System")
 
 local KeyInput = RallyTab:CreateInput({
-    Name = "ðŸ”‘ Player Key",
+    Name = "🔑 Player Key",
     PlaceholderText = "Paste your key here or use Auto-Extract",
     RemoveTextAfterFocusLost = false,
     Flag = "PlayerKey",
     Callback = function(Text)
         playerKey = Text
-        print("ðŸ”‘ Key set to: " .. Text)
+        print("🔑 Key set to: " .. Text)
         Rayfield:Notify({
             Title = "KEY SET",
             Content = "Rally key has been saved",
@@ -392,9 +407,9 @@ local KeyInput = RallyTab:CreateInput({
     end
 })
 
--- Auto Key Extractor Toggle (defined after KeyInput so it can reference it)
+-- Auto Key Extractor Toggle
 RallyTab:CreateToggle({
-    Name = "ðŸ” AUTO KEY EXTRACTOR",
+    Name = "🔍 AUTO KEY EXTRACTOR",
     CurrentValue = false,
     Flag = "KeyExtractorToggle",
     Callback = function(Value)
@@ -407,11 +422,11 @@ RallyTab:CreateToggle({
 })
 
 RallyTab:CreateButton({
-    Name = "ðŸ” Extract Key Now",
+    Name = "🔍 Extract Key Now",
     Callback = function()
         StartKeyExtractor(KeyInput)
         Rayfield:Notify({
-            Title = "ðŸ” LISTENING...",
+            Title = "🔍 LISTENING...",
             Content = "Key will auto-fill on next remote call",
             Duration = 3,
             Image = "search"
@@ -420,7 +435,7 @@ RallyTab:CreateButton({
 })
 
 RallyTab:CreateButton({
-    Name = "ðŸ§¹ Clear Key",
+    Name = "🧹 Clear Key",
     Callback = function()
         playerKey = ""
         pcall(function() KeyInput:Set("") end)
@@ -451,7 +466,7 @@ local RallyToggle = RallyTab:CreateToggle({
         if Value then
             if playerKey == "" then
                 Rayfield:Notify({
-                    Title = "âš ï¸ NO KEY",
+                    Title = "⚠️ NO KEY",
                     Content = "Please enter or extract a key first",
                     Duration = 3,
                     Image = "alert-circle"
@@ -467,11 +482,11 @@ local RallyToggle = RallyTab:CreateToggle({
 })
 
 RallyTab:CreateButton({
-    Name = "â–¶ï¸ Run Rally Sequence Now",
+    Name = "▶️ Run Rally Sequence Now",
     Callback = function()
         if playerKey == "" then
             Rayfield:Notify({
-                Title = "âš ï¸ NO KEY",
+                Title = "⚠️ NO KEY",
                 Content = "Please enter or extract a key first",
                 Duration = 2,
                 Image = "alert-circle"
@@ -483,10 +498,10 @@ RallyTab:CreateButton({
 })
 
 RallyTab:CreateButton({
-    Name = "ðŸ”Ž Test Current Key",
+    Name = "🔎 Test Current Key",
     Callback = function()
         if playerKey ~= "" then
-            print("ðŸ”‘ Current key: " .. playerKey)
+            print("🔑 Current key: " .. playerKey)
             Rayfield:Notify({
                 Title = "KEY INFO",
                 Content = "Key: " .. playerKey:sub(1, 10) .. "... (" .. #playerKey .. " chars)",
@@ -494,7 +509,7 @@ RallyTab:CreateButton({
                 Image = "key"
             })
         else
-            print("âš ï¸ No key entered")
+            print("⚠️ No key entered")
             Rayfield:Notify({
                 Title = "NO KEY",
                 Content = "Please enter or extract a key first",
@@ -507,7 +522,7 @@ RallyTab:CreateButton({
 
 -- ========== VISUAL TAB ==========
 VisualTab:CreateButton({
-   Name = "ðŸŸ© SPAWN BASEPLATE",
+   Name = "🟩 SPAWN BASEPLATE",
    Callback = function()
         if baseplate then baseplate:Destroy() end
         baseplate = Instance.new("Part", workspace)
@@ -538,7 +553,7 @@ VisualTab:CreateButton({
 VisualTab:CreateSection("Anti-Lag System")
 
 VisualTab:CreateButton({
-    Name = "ðŸš€ ENABLE ANTI-LAG",
+    Name = "🚀 ENABLE ANTI-LAG",
     Callback = function()
         optimizeGame()
         Rayfield:Notify({
@@ -551,7 +566,7 @@ VisualTab:CreateButton({
 })
 
 VisualTab:CreateButton({
-    Name = "ðŸ›‘ DISABLE ANTI-LAG",
+    Name = "🛑 DISABLE ANTI-LAG",
     Callback = function()
         deactivateLag()
         Rayfield:Notify({
@@ -567,7 +582,7 @@ VisualTab:CreateButton({
 BattleTab:CreateSection("Auto-Battle Settings")
 
 BattleTab:CreateToggle({
-    Name = "âš”ï¸ AUTO-BATTLE SYSTEM",
+    Name = "⚔️ AUTO-BATTLE SYSTEM",
     CurrentValue = AutoBattleEnabled,
     Flag = "AutoBattle",
     Callback = function(Value)
@@ -582,7 +597,7 @@ BattleTab:CreateToggle({
 })
 
 BattleTab:CreateToggle({
-    Name = "ðŸŒ¿ AUTO-SPAWN WILD BATTLES",
+    Name = "🌿 AUTO-SPAWN WILD BATTLES",
     CurrentValue = false,
     Flag = "WildBattle",
     Callback = function(Value)
@@ -625,7 +640,7 @@ BattleTab:CreateToggle({
 })
 
 BattleTab:CreateToggle({
-    Name = "â© BATTLE FAST-FORWARD",
+    Name = "⏩ BATTLE FAST-FORWARD",
     CurrentValue = false,
     Flag = "FastForward",
     Callback = function(Value)
@@ -695,43 +710,80 @@ task.spawn(function()
     end
 end)
 
--- ========== BATTLE LOOP ==========
+-- ========== AUTO-BATTLE LOOP (Fight button + Move 3 only - works for multiple rounds) ==========
 task.spawn(function()
     while task.wait() do
         pcall(function()
             if AutoBattleEnabled then
                 local BattleGui = PlayerGui:FindFirstChild("BattleGui", true)
                 if BattleGui then
-                    local clickMove3 = BattleGui:FindFirstChild("Move3", true) and BattleGui:FindFirstChild("Move3", true).Button
+                    -- Find all visible ImageButtons
+                    local allButtons = {}
                     
-                    local clickFight, restFight
-                    for _, v in ipairs(BattleGui:GetChildren()) do
-                        if v:IsA("ImageLabel") then
-                            if v.ImageColor3 == Color3.fromRGB(218, 83, 255) then
-                                restFight = v:FindFirstChild("Button")
-                            elseif v.ImageColor3 == Color3.fromRGB(255, 102, 102) then
-                                clickFight = v:FindFirstChild("Button")
-                            end
+                    for _, v in ipairs(BattleGui:GetDescendants()) do
+                        if v:IsA("ImageButton") and v.Visible then
+                            table.insert(allButtons, v)
                         end
                     end
-
-                    if clickFight and clickFight.Parent.Visible then
-                        local pos = clickFight.AbsolutePosition + Vector2.new(clickFight.AbsoluteSize.X/2, clickFight.AbsoluteSize.Y/2)
-                        mousemoveabs(pos.X, pos.Y)
-                        mouse1click()
-                        task.wait(10)
-                    end
-
-                    if clickMove3 and clickMove3.Parent.Visible then
-                        local pos = clickMove3.AbsolutePosition + Vector2.new(clickMove3.AbsoluteSize.X/2, clickMove3.AbsoluteSize.Y/2)
-                        mousemoveabs(pos.X, pos.Y)
-                        mouse1click()
-                        task.wait(10)
-                    elseif restFight and restFight.Parent.Visible then
-                        local pos = restFight.AbsolutePosition + Vector2.new(restFight.AbsoluteSize.X/2, restFight.AbsoluteSize.Y/2)
-                        mousemoveabs(pos.X, pos.Y)
-                        mouse1click()
-                        task.wait(10)
+                    
+                    if #allButtons > 0 then
+                        -- Sort by Y position to find the top button (Fight button)
+                        table.sort(allButtons, function(a, b)
+                            return a.AbsolutePosition.Y < b.AbsolutePosition.Y
+                        end)
+                        
+                        local topButton = allButtons[1]
+                        local topButtonY = topButton.AbsolutePosition.Y
+                        
+                        -- Check if there are other buttons below (move selection screen)
+                        local hasMultipleRows = false
+                        for i = 2, #allButtons do
+                            if allButtons[i].AbsolutePosition.Y > topButtonY + 30 then
+                                hasMultipleRows = true
+                                break
+                            end
+                        end
+                        
+                        if hasMultipleRows then
+                            -- We're in move selection screen - click Move 3
+                            -- Sort by X position to get horizontal order
+                            local moveButtons = {}
+                            for _, v in ipairs(allButtons) do
+                                if v.AbsolutePosition.Y > topButtonY + 30 then
+                                    table.insert(moveButtons, v)
+                                end
+                            end
+                            
+                            table.sort(moveButtons, function(a, b)
+                                return a.AbsolutePosition.X < b.AbsolutePosition.X
+                            end)
+                            
+                            -- Click the third button (Move 3) or first if less than 3
+                            local targetButton = moveButtons[3] or moveButtons[1]
+                            
+                            if targetButton then
+                                local movePos = targetButton.AbsolutePosition
+                                local moveSize = targetButton.AbsoluteSize
+                                local moveX = movePos.X + (moveSize.X / 2)
+                                local moveY = movePos.Y + (moveSize.Y / 2)
+                                
+                                clickAtPosition(moveX, moveY)
+                                print("⚔️ [CONSOLE] Clicked Move 3")
+                                task.wait(0.5)
+                            end
+                        else
+                            -- We're in main action screen - click Fight button with delay
+                            task.wait(0.3) -- Delay before clicking Fight
+                            
+                            local fightPos = topButton.AbsolutePosition
+                            local fightSize = topButton.AbsoluteSize
+                            local clickX = fightPos.X + (fightSize.X / 2)
+                            local clickY = fightPos.Y + (fightSize.Y / 2)
+                            
+                            clickAtPosition(clickX, clickY)
+                            print("⚔️ [CONSOLE] Clicked Fight button")
+                            task.wait(1)
+                        end
                     end
                 end
             end
@@ -751,6 +803,7 @@ task.spawn(function()
                 end
                 if Main.Battle and Main.Battle.doWildBattle then
                     Main.Battle.doWildBattle(Main.Battle, Main.DataManager.currentChunk.regionData.Grass, {})
+                    print("🌿 [CONSOLE] Spawned wild battle")
                 end
             end
         end)
@@ -775,7 +828,7 @@ Rayfield:LoadConfiguration()
 task.wait(1)
 if KeyInput and KeyInput.CurrentValue and KeyInput.CurrentValue ~= "" then
     playerKey = KeyInput.CurrentValue
-    print("ðŸ’¾ Loaded saved key: " .. playerKey)
+    print("💾 Loaded saved key: " .. playerKey)
 end
 
 -- Auto-start key extractor on load
@@ -786,7 +839,7 @@ StartKeyExtractor(KeyInput)
 task.wait(0.5)
 Rayfield:Notify({
    Title = "OWNER SYSTEM ONLINE",
-   Content = "Premium controls activated\nAuto Rally + Egg Hunter\nðŸ” Key extractor listening...",
+   Content = "Premium controls activated\nAuto Rally + Egg Hunter\n🔍 Key extractor listening...",
    Duration = 6,
    Image = "shield-check"
 })
